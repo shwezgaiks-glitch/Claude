@@ -127,7 +127,7 @@
     panel.className = "sfa-panel";
     panel.innerHTML = `
       <span class="sfa-panel__title">Spoonflower Analytics</span>
-      <button type="button" data-action="backfill">Full Backfill (2008–now)</button>
+      <button type="button" data-action="backfill">Full Backfill (2021–now)</button>
       <button type="button" class="sfa-secondary" data-action="sync-recent">Sync Recent (90 days)</button>
       <button type="button" class="sfa-secondary" data-action="open-dashboard">Open Dashboard</button>
       <span class="sfa-panel__status" data-role="status"></span>
@@ -171,7 +171,7 @@
   async function runBackfill(panel) {
     if (!findTable()) return;
     setButtonsDisabled(panel, true);
-    const startYear = 2008;
+    const startYear = 2021; // adjust if your Spoonflower selling history starts earlier
     const endYear = new Date().getFullYear();
     let totalAdded = 0;
     let totalUpdated = 0;
@@ -187,7 +187,7 @@
         totalUpdated += result.updated;
         await sleep(500); // be gentle with Spoonflower's server
       }
-      setStatus(panel, `Done. ${totalAdded} new transactions, ${totalUpdated} already known across 2008–${endYear}.`);
+      setStatus(panel, `Done. ${totalAdded} new transactions, ${totalUpdated} already known across ${startYear}–${endYear}.`);
     } catch (err) {
       console.error("[Spoonflower Analytics] Backfill stopped early due to an error:", err);
       setStatus(panel, `Stopped early after an error (${totalAdded} new so far) — see console, then try Full Backfill again to resume.`);

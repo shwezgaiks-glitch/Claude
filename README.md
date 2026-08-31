@@ -15,7 +15,9 @@ account, no network calls beyond the Spoonflower pages you're already on.
 
 - **Content script** (`content/`) — detects the Spoondollar history table on
   the page, injects a small sync panel above it, and can drive the page's own
-  date-range filter to pull your full history (back to 2008) in one pass.
+  date-range filter to pull your full history (back to 2021 by default —
+  Spoonflower itself supports back to 2008, so adjust `startYear` in
+  `content/spoonflower-history.js` if you started selling earlier) in one pass.
 - **Background service worker** (`background/`) — receives parsed rows from
   the content script and writes them to IndexedDB (the content script itself
   can't reach the extension's storage directly, since it runs at
@@ -35,7 +37,7 @@ account, no network calls beyond the Spoonflower pages you're already on.
 
 ## Using it
 
-1. On the Spoondollar history page, click **Full Backfill (2008–now)**. This
+1. On the Spoondollar history page, click **Full Backfill (2021–now)**. This
    steps through your history year by year, scraping and storing each batch.
    It takes a little while for long histories — the panel shows progress.
 2. Click **Open Dashboard** (from the panel or the toolbar popup) to see your
