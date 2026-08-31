@@ -1,4 +1,11 @@
-import { getAllTransactions, getMeta, getAllYearlySummaries, clearAllTransactions } from "../lib/db.js";
+import { getAllTransactions, getMeta, setMeta, getAllYearlySummaries, clearAllTransactions } from "../lib/db.js";
+
+// Sensible starting default — Spoonflower's own "Total Earned From Sales"
+// excludes a designer's purchases of their own designs, so this dashboard
+// needs to know which buyer usernames are "you" to match. Editable in the
+// dashboard (Verify Totals card) and persisted from there; these are just
+// the seed value before that setting has ever been saved.
+const DEFAULT_SELF_USERNAMES = ["textilemons", "shwetaggaikwad"];
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -262,6 +269,13 @@ let allRecords = [];
 let currentRange = "all";
 let currentSort = { key: "date", dir: "desc" };
 let currentSearch = "";
+let selfUsernames = []; // lowercase; buyer usernames to exclude as self-purchases
+
+function isEarningRecord(r) {
+  if (r.type !== "sale" && r.type !== "fill_a_yard") return false;
+  if (r.buyer && selfUsernames.includes(r.buyer.toLowerCase())) return false;
+  return true;
+}
 
 function getRangeBounds(range) {
   const now = new Date();
@@ -323,7 +337,7 @@ function bucketByDay(records) {
 
 function renderAll() {
   const scoped = filterByRange(allRecords, currentRange);
-  const earnings = scoped.filter((r) => r.type === "sale" || r.type === "fill_a_yard");
+  const earnings = scoped.filter(isEarningRecord);
 
   const totalRevenue = earnings.reduce((s, r) => s + r.amount, 0);
   const thisMonthKey = new Date().toISOString().slice(0, 7);
@@ -415,7 +429,7 @@ function renderVerifyTable(records, summaries) {
 
   const ourTotalsByYear = new Map();
   records
-    .filter((r) => r.type === "sale" || r.type === "fill_a_yard")
+    .filter(isEarningRecord)
     .forEach((r) => {
       if (!r.date) return;
       const year = r.date.slice(0, 4);
@@ -490,10 +504,34 @@ function applyRange(range) {
   renderAll();
 }
 
+async function loadSelfUsernames() {
+  const stored = await getMeta("selfUsernames");
+  if (Array.isArray(stored)) return stored;
+  await setMeta("selfUsernames", DEFAULT_SELF_USERNAMES);
+  return DEFAULT_SELF_USERNAMES;
+}
+
 async function init() {
   allRecords = await getAllTransactions();
-  const [lastSyncAt, yearlySummaries] = await Promise.all([getMeta("lastSyncAt"), getAllYearlySummaries()]);
+  const [lastSyncAt, yearlySummaries, storedSelfUsernames] = await Promise.all([
+    getMeta("lastSyncAt"),
+    getAllYearlySummaries(),
+    loadSelfUsernames()
+  ]);
+  selfUsernames = storedSelfUsernames;
+  document.getElementById("self-usernames-input").value = selfUsernames.join(", ");
   renderVerifyTable(allRecords, yearlySummaries);
+
+  document.getElementById("save-self-usernames").addEventListener("click", async () => {
+    const raw = document.getElementById("self-usernames-input").value;
+    selfUsernames = raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    await setMeta("selfUsernames", selfUsernames);
+    renderVerifyTable(allRecords, yearlySummaries);
+    if (allRecords.length > 0) renderAll();
+  });
 
   document.getElementById("sync-status").textContent = lastSyncAt
     ? `Last synced ${new Date(lastSyncAt).toLocaleString()} · ${allRecords.length.toLocaleString()} transactions`

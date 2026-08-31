@@ -36,8 +36,17 @@
         <h2>Verify against Spoonflower's official totals</h2>
         <p class="muted">
           From Spoonflower's own Yearly Spoondollar Statements page ("Total Earned From Sales" per year) — run
-          <strong>Verify Totals</strong> on the Spoondollar history page to refresh this.
+          <strong>Verify Totals</strong> on the Spoondollar history page to refresh this. Spoonflower's official total
+          excludes royalties from designs you bought yourself, which this dashboard doesn't know about automatically —
+          exclude those buyer usernames (including past usernames) below to match.
         </p>
+        <div class="settings-row">
+          <label for="self-usernames-input">Exclude your own purchases (usernames, comma-separated)</label>
+          <div class="settings-row__controls">
+            <input id="self-usernames-input" type="text" placeholder="e.g. yourusername, oldusername" />
+            <button id="save-self-usernames" class="btn-secondary">Save</button>
+          </div>
+        </div>
         <table id="verify-table">
           <thead>
             <tr>
