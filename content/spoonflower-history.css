@@ -1,0 +1,44 @@
+.sfa-panel {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  border: 1px solid #d8d6cf;
+  background: #fcfcfb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sfa-panel__title {
+  font-weight: 600;
+  color: #0b0b0b;
+  margin-right: 4px;
+}
+
+.sfa-panel button {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #2a78d6;
+  background: #2a78d6;
+  color: #fff;
+  cursor: pointer;
+}
+
+.sfa-panel button.sfa-secondary {
+  background: #fff;
+  color: #2a78d6;
+}
+
+.sfa-panel button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sfa-panel__status {
+  font-size: 13px;
+  color: #52514e;
+}

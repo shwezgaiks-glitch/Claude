@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Spoonflower Sales Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div>
+        <h1>Spoonflower Sales Analytics</h1>
+        <p id="sync-status" class="muted"></p>
+      </div>
+      <button id="export-csv" class="btn-secondary">Export CSV</button>
+    </header>
+
+    <div id="empty-state" class="empty-state" hidden>
+      <h2>No sales data yet</h2>
+      <p>Open your <strong>Spoondollar history</strong> page on Spoonflower — a sync panel appears above the table there. Run "Full Backfill" to import your history, then come back here.</p>
+    </div>
+
+    <main id="app" hidden>
+      <div class="filter-row" id="filter-row" role="group" aria-label="Date range">
+        <button type="button" class="filter-btn" data-range="all">All time</button>
+        <button type="button" class="filter-btn" data-range="12m">Last 12 months</button>
+        <button type="button" class="filter-btn" data-range="ytd">Year to date</button>
+        <button type="button" class="filter-btn" data-range="90d">Last 90 days</button>
+      </div>
+
+      <section class="stat-tiles" id="stat-tiles"></section>
+
+      <section class="chart-card">
+        <h2>Revenue over time</h2>
+        <div id="trend-chart" class="chart-container"></div>
+      </section>
+
+      <div class="two-col">
+        <section class="chart-card">
+          <h2>Top designs by revenue</h2>
+          <div id="top-designs-chart" class="chart-container"></div>
+        </section>
+        <section class="chart-card">
+          <h2>Revenue by category</h2>
+          <div id="category-chart" class="chart-container"></div>
+        </section>
+      </div>
+
+      <section class="chart-card">
+        <div class="table-header">
+          <h2>All transactions</h2>
+          <input id="table-search" type="search" placeholder="Filter by design name or product…" />
+        </div>
+        <div class="table-scroll">
+          <table id="tx-table">
+            <thead>
+              <tr>
+                <th data-sort="date">Date</th>
+                <th data-sort="designName">Design</th>
+                <th data-sort="productName">Product</th>
+                <th data-sort="category">Category</th>
+                <th data-sort="buyer">Buyer</th>
+                <th data-sort="amount" class="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="tx-table-body"></tbody>
+          </table>
+        </div>
+        <p id="table-count" class="muted"></p>
+      </section>
+    </main>
+
+    <script type="module" src="dashboard.js"></script>
+  </body>
+</html>

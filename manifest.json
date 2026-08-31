@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Spoonflower Sales Analytics",
+  "version": "0.1.0",
+  "description": "Local analytics dashboard built from your own Spoonflower Spoondollar history: revenue trends, best/worst sellers, and product breakdowns. All data stays on your machine.",
+  "host_permissions": ["https://www.spoonflower.com/*"],
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.spoonflower.com/*"],
+      "js": ["lib/productTypes.js", "lib/parser.js", "content/spoonflower-history.js"],
+      "css": ["content/spoonflower-history.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
