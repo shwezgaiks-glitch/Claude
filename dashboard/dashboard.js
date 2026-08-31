@@ -1,4 +1,4 @@
-import { getAllTransactions, getMeta } from "../lib/db.js";
+import { getAllTransactions, getMeta, getAllYearlySummaries } from "../lib/db.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -403,6 +403,58 @@ function renderTable(scopedRecords) {
       : `${rows.length.toLocaleString()} transactions`;
 }
 
+// ---------- Verification against Spoonflower's official yearly totals ----------
+
+function renderVerifyTable(records, summaries) {
+  const card = document.getElementById("verify-card");
+  if (!summaries || summaries.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const ourTotalsByYear = new Map();
+  records
+    .filter((r) => r.type === "sale" || r.type === "fill_a_yard")
+    .forEach((r) => {
+      if (!r.date) return;
+      const year = r.date.slice(0, 4);
+      ourTotalsByYear.set(year, (ourTotalsByYear.get(year) || 0) + r.amount);
+    });
+
+  const tbody = document.getElementById("verify-table-body");
+  tbody.replaceChildren();
+
+  summaries
+    .slice()
+    .sort((a, b) => a.year - b.year)
+    .forEach((summary) => {
+      if (summary.earned == null) return; // couldn't parse that year's page
+      const ourTotal = ourTotalsByYear.get(String(summary.year)) || 0;
+      const diff = ourTotal - summary.earned;
+      const matches = Math.abs(diff) < 0.01;
+
+      const tr = document.createElement("tr");
+      const yearTd = document.createElement("td");
+      yearTd.textContent = String(summary.year);
+      const ourTd = document.createElement("td");
+      ourTd.className = "num";
+      ourTd.textContent = formatCurrency(ourTotal);
+      const officialTd = document.createElement("td");
+      officialTd.className = "num";
+      officialTd.textContent = formatCurrency(summary.earned);
+      const diffTd = document.createElement("td");
+      diffTd.className = "num";
+      diffTd.textContent = formatCurrency(diff);
+      const statusTd = document.createElement("td");
+      statusTd.className = matches ? "status-match" : "status-mismatch";
+      statusTd.textContent = matches ? "✓ Match" : "⚠ Mismatch";
+
+      tr.append(yearTd, ourTd, officialTd, diffTd, statusTd);
+      tbody.appendChild(tr);
+    });
+}
+
 // ---------- CSV export ----------
 
 function csvEscape(v) {
@@ -440,7 +492,8 @@ function applyRange(range) {
 
 async function init() {
   allRecords = await getAllTransactions();
-  const lastSyncAt = await getMeta("lastSyncAt");
+  const [lastSyncAt, yearlySummaries] = await Promise.all([getMeta("lastSyncAt"), getAllYearlySummaries()]);
+  renderVerifyTable(allRecords, yearlySummaries);
 
   document.getElementById("sync-status").textContent = lastSyncAt
     ? `Last synced ${new Date(lastSyncAt).toLocaleString()} · ${allRecords.length.toLocaleString()} transactions`

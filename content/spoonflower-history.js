@@ -48,6 +48,54 @@
     return { from: dateish[0] || null, to: dateish[1] || null };
   }
 
+  function getAccountId() {
+    const m = location.pathname.match(/\/account\/(\d+)/);
+    return m ? m[1] : null;
+  }
+
+  // Parses the "Earning Statement for {year}" block from the Yearly
+  // Spoondollar Statements page (fetched separately — see fetchYearlyStatement)
+  // into { year, earned, paidOut, spent, withheld }. Each stat sits in a
+  // `.splam_totals` block with a `.left-key` label (which also contains a
+  // help-icon <a> for the first one, stripped out below) and two
+  // `.right-value` spans — one wrapping the "Show Transactions" form, one
+  // holding the plain-text dollar amount. We take whichever `.right-value`
+  // does NOT contain a form.
+  function parseYearlyStatement(doc, year) {
+    const result = { year, earned: null, paidOut: null, spent: null, withheld: null };
+    const blocks = Array.from(doc.querySelectorAll(".splam-totals-wrapper .splam_totals"));
+    blocks.forEach((block) => {
+      const leftKeyEl = block.querySelector(".left-key");
+      if (!leftKeyEl) return;
+      const labelClone = leftKeyEl.cloneNode(true);
+      labelClone.querySelectorAll("a").forEach((a) => a.remove());
+      const label = SpoonflowerParser.normalizeWhitespace(labelClone.textContent).toLowerCase();
+
+      const valueSpan = Array.from(block.querySelectorAll(".right-value")).find((s) => !s.querySelector("form"));
+      if (!valueSpan) return;
+      const value = SpoonflowerParser.parseMoney(valueSpan.textContent);
+      if (value == null) return;
+
+      if (label.includes("earned")) result.earned = value;
+      else if (label.includes("paid out")) result.paidOut = value;
+      else if (label.includes("spent")) result.spent = value;
+      else if (label.includes("withheld")) result.withheld = value;
+    });
+    return result;
+  }
+
+  // Same-origin fetch (cookies included automatically) — no page navigation,
+  // no waiting for AJAX, no date-picker automation. This page's URL takes a
+  // plain `year` query param, confirmed from the live site.
+  async function fetchYearlyStatement(accountId, year) {
+    const url = `${location.origin}/account/${accountId}?sub_action=spoondollars&transition=statements&year=${year}`;
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) throw new Error(`HTTP ${res.status} fetching statement for ${year}`);
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return parseYearlyStatement(doc, year);
+  }
+
   function guessSearchButton() {
     const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], a'));
     return candidates.find((el) => /^\s*search\s*$/i.test(el.textContent || el.value || "")) || null;
@@ -148,6 +196,7 @@
       <span class="sfa-panel__title">Spoonflower Analytics</span>
       <button type="button" data-action="backfill">Full Backfill (2021–now)</button>
       <button type="button" class="sfa-secondary" data-action="sync-recent">Sync Recent (90 days)</button>
+      <button type="button" class="sfa-secondary" data-action="verify-totals">Verify Totals</button>
       <button type="button" class="sfa-secondary" data-action="open-dashboard">Open Dashboard</button>
       <span class="sfa-panel__status" data-role="status"></span>
     `;
@@ -236,6 +285,46 @@
     }
   }
 
+  // Fetches Spoonflower's own official per-year totals (Earning Statement
+  // page) and stores them alongside — never instead of — the ledger-derived
+  // transactions, purely so the dashboard can show whether our scraped sum
+  // matches Spoonflower's own numbers. That page has no stable per-row id,
+  // so it's not safe to use as the transaction source itself.
+  async function runVerifyTotals(panel) {
+    const accountId = getAccountId();
+    if (!accountId) {
+      setStatus(panel, "Couldn't find your account id in the page URL — can't verify totals from here.");
+      return;
+    }
+    setButtonsDisabled(panel, true);
+    const startYear = 2021; // keep in sync with runBackfill's startYear
+    const endYear = new Date().getFullYear();
+    const summaries = [];
+    try {
+      for (let year = startYear; year <= endYear; year++) {
+        setStatus(panel, `Verifying ${year}…`);
+        summaries.push(await fetchYearlyStatement(accountId, year));
+        await sleep(300); // be gentle with Spoonflower's server
+      }
+      const r = await safeSendMessage({ type: "SYNC_YEARLY_SUMMARY", records: summaries });
+      if (!r.ok) {
+        setStatus(
+          panel,
+          r.invalidated
+            ? "This extension was reloaded/updated — refresh this page (F5) and try again."
+            : "Verify Totals failed to save — see console for details."
+        );
+        return;
+      }
+      setStatus(panel, `Verified ${summaries.length} year(s) of official totals — open the Dashboard to see the comparison.`);
+    } catch (err) {
+      console.error("[Spoonflower Analytics] Verify Totals failed:", err);
+      setStatus(panel, "Verify Totals failed — see console for details.");
+    } finally {
+      setButtonsDisabled(panel, false);
+    }
+  }
+
   async function openDashboard() {
     const r = await safeSendMessage({ type: "OPEN_DASHBOARD" });
     if (r.invalidated) {
@@ -254,6 +343,7 @@
       const action = e.target?.dataset?.action;
       if (action === "backfill") runBackfill(panel);
       else if (action === "sync-recent") runSyncRecent(panel);
+      else if (action === "verify-totals") runVerifyTotals(panel);
       else if (action === "open-dashboard") openDashboard();
     });
 

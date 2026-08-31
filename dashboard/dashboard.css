@@ -13,6 +13,7 @@
   --series-2: #eb6834; /* orange - fabric */
   --series-3: #1baf7a; /* aqua - other */
   --good: #006300;
+  --critical: #d03b3b;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -30,6 +31,9 @@
     --series-2: #d95926;
     --series-3: #199e70;
     --good: #0ca30c;
+    /* --critical intentionally not overridden: status colors are fixed
+       across themes, not swapped like categorical hues (dataviz skill,
+       palette.md "Status palette (fixed — never themed)"). */
   }
 }
 
@@ -285,6 +289,15 @@ tbody td {
 }
 tbody tr:hover {
   background: var(--page);
+}
+
+.status-match {
+  color: var(--good);
+  font-weight: 600;
+}
+.status-mismatch {
+  color: var(--critical);
+  font-weight: 600;
 }
 
 svg.chart-svg {

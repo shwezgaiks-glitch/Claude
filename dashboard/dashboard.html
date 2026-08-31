@@ -29,6 +29,26 @@
 
       <section class="stat-tiles" id="stat-tiles"></section>
 
+      <section class="chart-card" id="verify-card" hidden>
+        <h2>Verify against Spoonflower's official totals</h2>
+        <p class="muted">
+          From Spoonflower's own Yearly Spoondollar Statements page ("Total Earned From Sales" per year) — run
+          <strong>Verify Totals</strong> on the Spoondollar history page to refresh this.
+        </p>
+        <table id="verify-table">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th class="num">Our total</th>
+              <th class="num">Official total</th>
+              <th class="num">Difference</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="verify-table-body"></tbody>
+        </table>
+      </section>
+
       <section class="chart-card">
         <h2>Revenue over time</h2>
         <div id="trend-chart" class="chart-container"></div>

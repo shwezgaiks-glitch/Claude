@@ -24,7 +24,8 @@ account, no network calls beyond the Spoonflower pages you're already on.
   spoonflower.com's origin).
 - **Dashboard** (`dashboard/`) — a full analytics view: revenue trend, top
   designs, revenue by category (wallpaper/fabric), a searchable/sortable
-  transaction table, and CSV export.
+  transaction table, CSV export, and a verification table comparing synced
+  totals against Spoonflower's own official per-year figures.
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)
@@ -44,6 +45,14 @@ account, no network calls beyond the Spoonflower pages you're already on.
    analytics.
 3. On future visits, **Sync Recent (90 days)** is enough to catch up — the
    backfill is idempotent, so re-running it never creates duplicates.
+4. Click **Verify Totals** to cross-check your synced data against
+   Spoonflower's own numbers. This fetches the "Yearly Spoondollar
+   Statements" page (`/account/<id>?sub_action=spoondollars&transition=statements&year=<year>`)
+   for each year and reads its official "Total Earned From Sales" figure —
+   *not* used as a transaction source (that page has no stable per-row id to
+   dedupe on), only as a check. The dashboard shows a year-by-year
+   our-total-vs-official-total table so you can see at a glance whether the
+   ledger scrape captured everything.
 
 ## Known limitation: the date-filter selectors
 
