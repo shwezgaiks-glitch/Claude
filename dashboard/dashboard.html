@@ -61,6 +61,25 @@
         </table>
       </section>
 
+      <section class="chart-card" id="payouts-card" hidden>
+        <h2>Payouts</h2>
+        <p class="muted">
+          What Spoonflower says it paid out per year — compare this to your bank deposits, not to the revenue totals
+          above. Payouts lag earnings (money earned late in a year is often paid out early the next), so this will
+          never match "Total Earned From Sales" for the same calendar year even when everything is correct.
+        </p>
+        <table id="payouts-table">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th class="num">Spoonflower says paid out</th>
+              <th class="num">Synced payout records</th>
+            </tr>
+          </thead>
+          <tbody id="payouts-table-body"></tbody>
+        </table>
+      </section>
+
       <section class="chart-card">
         <h2>Revenue over time</h2>
         <div id="trend-chart" class="chart-container"></div>

@@ -502,6 +502,52 @@ function renderVerifyTable(records, summaries) {
     });
 }
 
+// Payouts are a different accounting event from earnings (batched,
+// periodic, lag actual sales) — this table exists so payout figures can be
+// checked against bank records directly, never against the revenue/earned
+// totals above.
+function renderPayoutsTable(records, summaries) {
+  const card = document.getElementById("payouts-card");
+  const summariesWithPaidOut = (summaries || []).filter((s) => s.paidOut != null);
+  if (summariesWithPaidOut.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const ourPayoutsByYear = new Map();
+  records
+    .filter((r) => r.type === "payout")
+    .forEach((r) => {
+      if (!r.date) return;
+      const year = r.date.slice(0, 4);
+      ourPayoutsByYear.set(year, (ourPayoutsByYear.get(year) || 0) + r.amount);
+    });
+
+  const tbody = document.getElementById("payouts-table-body");
+  tbody.replaceChildren();
+
+  summariesWithPaidOut
+    .slice()
+    .sort((a, b) => a.year - b.year)
+    .forEach((summary) => {
+      const ours = ourPayoutsByYear.get(String(summary.year));
+
+      const tr = document.createElement("tr");
+      const yearTd = document.createElement("td");
+      yearTd.textContent = String(summary.year);
+      const officialTd = document.createElement("td");
+      officialTd.className = "num";
+      officialTd.textContent = formatCurrency(Math.abs(summary.paidOut));
+      const oursTd = document.createElement("td");
+      oursTd.className = "num";
+      oursTd.textContent = ours == null ? "—" : formatCurrency(Math.abs(ours));
+
+      tr.append(yearTd, officialTd, oursTd);
+      tbody.appendChild(tr);
+    });
+}
+
 // ---------- CSV export ----------
 
 function csvEscape(v) {
@@ -554,6 +600,7 @@ async function init() {
   selfUsernames = storedSelfUsernames;
   document.getElementById("self-usernames-input").value = selfUsernames.join(", ");
   renderVerifyTable(allRecords, yearlySummaries);
+  renderPayoutsTable(allRecords, yearlySummaries);
 
   document.getElementById("save-self-usernames").addEventListener("click", async () => {
     const raw = document.getElementById("self-usernames-input").value;
