@@ -106,20 +106,39 @@
     return false;
   }
 
-  function sendToBackground(records) {
+  // chrome.runtime.sendMessage throws SYNCHRONOUSLY (not via lastError) when
+  // the extension has been reloaded/updated since this content script was
+  // injected — "Extension context invalidated." A page left open across a
+  // `chrome://extensions` reload is the classic trigger. Every call site
+  // routes through here so that failure is reported, not thrown.
+  function safeSendMessage(message) {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: "SYNC_TRANSACTIONS", records }, (response) => {
-        resolve(response && response.ok ? response : { ok: false, added: 0, updated: 0 });
-      });
+      try {
+        if (!chrome.runtime?.id) {
+          resolve({ ok: false, invalidated: true });
+          return;
+        }
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({ ok: false, invalidated: /context invalidated/i.test(chrome.runtime.lastError.message || ""), error: chrome.runtime.lastError.message });
+            return;
+          }
+          resolve(response || { ok: false });
+        });
+      } catch (err) {
+        resolve({ ok: false, invalidated: true, error: String(err) });
+      }
     });
   }
 
-  function getStats() {
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: "GET_STATS" }, (response) => {
-        resolve(response && response.ok ? response : { count: 0, lastSyncAt: null });
-      });
-    });
+  async function sendToBackground(records) {
+    const r = await safeSendMessage({ type: "SYNC_TRANSACTIONS", records });
+    return r.ok ? r : { ok: false, added: 0, updated: 0, invalidated: r.invalidated };
+  }
+
+  async function getStats() {
+    const r = await safeSendMessage({ type: "GET_STATS" });
+    return r.ok ? r : { count: 0, lastSyncAt: null, invalidated: r.invalidated };
   }
 
   function buildPanel() {
@@ -164,6 +183,10 @@
     }
     const records = SpoonflowerParser.parseHistoryTable(table);
     const result = await sendToBackground(records);
+    if (result.invalidated) {
+      setStatus(panel, "This extension was reloaded/updated — refresh this page (F5) and try again.");
+      return null;
+    }
     setStatus(panel, `${label}: +${result.added} new (${result.updated} already known)`);
     return result;
   }
@@ -213,8 +236,11 @@
     }
   }
 
-  function openDashboard() {
-    chrome.runtime.sendMessage({ type: "OPEN_DASHBOARD" });
+  async function openDashboard() {
+    const r = await safeSendMessage({ type: "OPEN_DASHBOARD" });
+    if (r.invalidated) {
+      alert("Spoonflower Analytics was reloaded/updated — refresh this page and try again.");
+    }
   }
 
   async function init() {
