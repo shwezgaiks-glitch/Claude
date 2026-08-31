@@ -1,4 +1,4 @@
-import { getAllTransactions, getMeta, getAllYearlySummaries } from "../lib/db.js";
+import { getAllTransactions, getMeta, getAllYearlySummaries, clearAllTransactions } from "../lib/db.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -498,6 +498,17 @@ async function init() {
   document.getElementById("sync-status").textContent = lastSyncAt
     ? `Last synced ${new Date(lastSyncAt).toLocaleString()} · ${allRecords.length.toLocaleString()} transactions`
     : "";
+
+  document.getElementById("reset-data").addEventListener("click", async () => {
+    const confirmed = confirm(
+      "This deletes all synced transactions from this browser's local storage. " +
+        "Your Spoonflower account and data on Spoonflower's servers are unaffected — " +
+        "you can re-sync any time. Continue?"
+    );
+    if (!confirmed) return;
+    await clearAllTransactions();
+    location.reload();
+  });
 
   if (allRecords.length === 0) {
     document.getElementById("empty-state").hidden = false;

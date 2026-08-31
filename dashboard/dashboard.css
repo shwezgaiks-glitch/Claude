@@ -74,6 +74,11 @@ main {
   margin: 0;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .btn-secondary {
   font-family: inherit;
   font-size: 13px;
@@ -82,6 +87,17 @@ main {
   border: 1px solid var(--series-1);
   background: var(--surface);
   color: var(--series-1);
+  cursor: pointer;
+}
+
+.btn-danger {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--critical);
+  background: var(--surface);
+  color: var(--critical);
   cursor: pointer;
 }
 
