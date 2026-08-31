@@ -12,7 +12,6 @@
   --series-1-wash: rgba(42, 120, 214, 0.1);
   --series-2: #eb6834; /* orange - fabric */
   --series-3: #1baf7a; /* aqua - other */
-  --good: #006300;
   --critical: #d03b3b;
 }
 @media (prefers-color-scheme: dark) {
@@ -30,7 +29,6 @@
     --series-1-wash: rgba(57, 135, 229, 0.14);
     --series-2: #d95926;
     --series-3: #199e70;
-    --good: #0ca30c;
     /* --critical intentionally not overridden: status colors are fixed
        across themes, not swapped like categorical hues (dataviz skill,
        palette.md "Status palette (fixed — never themed)"). */
@@ -305,43 +303,6 @@ tbody td {
 }
 tbody tr:hover {
   background: var(--page);
-}
-
-.settings-row {
-  margin: 14px 0;
-  padding: 12px 14px;
-  background: var(--page);
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-.settings-row label {
-  display: block;
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-}
-.settings-row__controls {
-  display: flex;
-  gap: 8px;
-}
-.settings-row__controls input {
-  flex: 1;
-  font-family: inherit;
-  font-size: 13px;
-  padding: 7px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-primary);
-}
-
-.status-match {
-  color: var(--good);
-  font-weight: 600;
-}
-.status-mismatch {
-  color: var(--critical);
-  font-weight: 600;
 }
 
 svg.chart-svg {

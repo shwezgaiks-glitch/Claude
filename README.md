@@ -34,9 +34,12 @@ back in one response.
     catching up after the initial backfill.
   - **Verify Totals** — fetches the *summary* numbers from the same Yearly
     Statements page (Total Earned From Sales, Paid Out, Spent, Withheld per
-    year) as a cross-check against the synced transactions — never as the
-    transaction source itself, since that summary page has no stable
-    per-row id to dedupe on.
+    year) — never as the transaction source itself, since that summary page
+    has no stable per-row id to dedupe on. The dashboard's Payouts card
+    surfaces the "Paid Out" figure specifically, since that's the one
+    directly checkable against a bank statement (see note below on why
+    "Earned" and "Paid Out" don't — and shouldn't — match for the same
+    calendar year).
 - **Background service worker** (`background/`) — receives parsed records
   from the content script and writes them to IndexedDB (the content script
   itself can't reach the extension's storage directly, since it runs at
@@ -60,10 +63,13 @@ back in one response.
 1. On the Spoondollar history page, click **Full Backfill (2021–now)**. Each
    year is one fetch, so this is fast — a handful of seconds for several
    years of history.
-2. Click **Verify Totals** to cross-check against Spoonflower's own official
-   per-year totals.
+2. Click **Verify Totals** to pull Spoonflower's own official per-year
+   payout figures.
 3. Click **Open Dashboard** (from the panel or the toolbar popup) to see your
-   analytics, including the verification table.
+   analytics, including the Payouts card — compare that against your bank
+   deposits. (It won't match "Total Earned From Sales" for the same
+   calendar year, even when everything is correct — payouts lag earnings,
+   since money earned late in a year is often paid out early the next.)
 4. On future visits, **Sync This Year** is enough to catch up — syncing is
    idempotent (records are upserted by a synthesized id derived from the
    CSV's second-precision timestamp, design id, and amount), so re-running
@@ -82,7 +88,7 @@ back in one response.
 ## Extending
 
 This first version covers: revenue trend, best/worst sellers, product-type
-(wallpaper/fabric) breakdown, official-totals verification, and CSV export.
-Natural next additions: Spoondollar payout tracking (earned vs. paid out
-over time, using the "Total Paid Out" figure already fetched by Verify
-Totals), and custom tagging/grouping of designs into your own collections.
+(wallpaper/fabric) breakdown, returns, repeat buyers, official payout
+figures, and CSV export. Natural next additions: custom tagging/grouping of
+designs into your own collections, and a design-performance view (if
+Spoonflower ever exposes view/favorite counts alongside sales).

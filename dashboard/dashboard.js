@@ -1,11 +1,4 @@
-import { getAllTransactions, getMeta, setMeta, getAllYearlySummaries, clearAllTransactions } from "../lib/db.js";
-
-// Sensible starting default — Spoonflower's own "Total Earned From Sales"
-// excludes a designer's purchases of their own designs, so this dashboard
-// needs to know which buyer usernames are "you" to match. Editable in the
-// dashboard (Verify Totals card) and persisted from there; these are just
-// the seed value before that setting has ever been saved.
-const DEFAULT_SELF_USERNAMES = ["textilemons", "shwetaggaikwad"];
+import { getAllTransactions, getMeta, getAllYearlySummaries, clearAllTransactions } from "../lib/db.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -269,12 +262,9 @@ let allRecords = [];
 let currentRange = "all";
 let currentSort = { key: "date", dir: "desc" };
 let currentSearch = "";
-let selfUsernames = []; // lowercase; buyer usernames to exclude as self-purchases
 
 function isEarningRecord(r) {
-  if (r.type !== "sale" && r.type !== "fill_a_yard") return false;
-  if (r.buyer && selfUsernames.includes(r.buyer.toLowerCase())) return false;
-  return true;
+  return r.type === "sale" || r.type === "fill_a_yard";
 }
 
 function getRangeBounds(range) {
@@ -376,8 +366,54 @@ function renderAll() {
   const categories = Array.from(byCategory.values()).sort((a, b) => b.value - a.value);
   renderBarChart(document.getElementById("category-chart"), categories);
 
+  renderRepeatBuyers(earnings);
   renderReturns(scoped);
   renderTable(scoped);
+}
+
+function renderRepeatBuyers(earnings) {
+  const card = document.getElementById("repeat-buyers-card");
+  const byBuyer = new Map();
+  earnings.forEach((r) => {
+    if (!r.buyer) return; // guest checkouts are anonymized to null and can't be tracked as repeats
+    const prev = byBuyer.get(r.buyer) || { buyer: r.buyer, count: 0, total: 0, first: r.date, last: r.date };
+    prev.count += 1;
+    prev.total += r.amount;
+    if (r.date && (!prev.first || r.date < prev.first)) prev.first = r.date;
+    if (r.date && (!prev.last || r.date > prev.last)) prev.last = r.date;
+    byBuyer.set(r.buyer, prev);
+  });
+
+  const repeats = Array.from(byBuyer.values())
+    .filter((b) => b.count >= 2)
+    .sort((a, b) => b.count - a.count || b.total - a.total)
+    .slice(0, 25);
+
+  if (repeats.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const tbody = document.getElementById("repeat-buyers-table-body");
+  tbody.replaceChildren();
+  repeats.forEach((b) => {
+    const tr = document.createElement("tr");
+    const buyerTd = document.createElement("td");
+    buyerTd.textContent = b.buyer;
+    const countTd = document.createElement("td");
+    countTd.className = "num";
+    countTd.textContent = b.count.toLocaleString();
+    const totalTd = document.createElement("td");
+    totalTd.className = "num";
+    totalTd.textContent = formatCurrency(b.total);
+    const firstTd = document.createElement("td");
+    firstTd.textContent = b.first || "";
+    const lastTd = document.createElement("td");
+    lastTd.textContent = b.last || "";
+    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd);
+    tbody.appendChild(tr);
+  });
 }
 
 function renderReturns(scopedRecords) {
@@ -392,24 +428,6 @@ function renderReturns(scopedRecords) {
   const total = returns.reduce((s, r) => s + r.amount, 0); // amounts are negative
   document.getElementById("returns-total").textContent =
     `${formatCurrency(Math.abs(total))} across ${returns.length} order${returns.length === 1 ? "" : "s"} — excluded from revenue above.`;
-
-  const tbody = document.getElementById("returns-table-body");
-  tbody.replaceChildren();
-  returns
-    .slice()
-    .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
-    .forEach((r) => {
-      const tr = document.createElement("tr");
-      const dateTd = document.createElement("td");
-      dateTd.textContent = r.date || "";
-      const designTd = document.createElement("td");
-      designTd.textContent = r.designName || "";
-      const amountTd = document.createElement("td");
-      amountTd.className = "num";
-      amountTd.textContent = formatCurrency(r.amount);
-      tr.append(dateTd, designTd, amountTd);
-      tbody.appendChild(tr);
-    });
 }
 
 function renderTable(scopedRecords) {
@@ -450,63 +468,9 @@ function renderTable(scopedRecords) {
       : `${rows.length.toLocaleString()} transactions`;
 }
 
-// ---------- Verification against Spoonflower's official yearly totals ----------
+// ---------- Payouts (Spoonflower's official per-year figures) ----------
 
-function renderVerifyTable(records, summaries) {
-  const card = document.getElementById("verify-card");
-  if (!summaries || summaries.length === 0) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
-
-  const ourTotalsByYear = new Map();
-  records
-    .filter(isEarningRecord)
-    .forEach((r) => {
-      if (!r.date) return;
-      const year = r.date.slice(0, 4);
-      ourTotalsByYear.set(year, (ourTotalsByYear.get(year) || 0) + r.amount);
-    });
-
-  const tbody = document.getElementById("verify-table-body");
-  tbody.replaceChildren();
-
-  summaries
-    .slice()
-    .sort((a, b) => a.year - b.year)
-    .forEach((summary) => {
-      if (summary.earned == null) return; // couldn't parse that year's page
-      const ourTotal = ourTotalsByYear.get(String(summary.year)) || 0;
-      const diff = ourTotal - summary.earned;
-      const matches = Math.abs(diff) < 0.01;
-
-      const tr = document.createElement("tr");
-      const yearTd = document.createElement("td");
-      yearTd.textContent = String(summary.year);
-      const ourTd = document.createElement("td");
-      ourTd.className = "num";
-      ourTd.textContent = formatCurrency(ourTotal);
-      const officialTd = document.createElement("td");
-      officialTd.className = "num";
-      officialTd.textContent = formatCurrency(summary.earned);
-      const diffTd = document.createElement("td");
-      diffTd.className = "num";
-      diffTd.textContent = formatCurrency(diff);
-      const statusTd = document.createElement("td");
-      statusTd.className = matches ? "status-match" : "status-mismatch";
-      statusTd.textContent = matches ? "✓ Match" : "⚠ Mismatch";
-
-      tr.append(yearTd, ourTd, officialTd, diffTd, statusTd);
-      tbody.appendChild(tr);
-    });
-}
-
-// Payouts are a different accounting event from earnings (batched,
-// periodic, lag actual sales) — this table exists so payout figures can be
-// checked against bank records directly, never against the revenue/earned
-// totals above.
-function renderPayoutsTable(records, summaries) {
+function renderPayoutsTable(summaries) {
   const card = document.getElementById("payouts-card");
   const summariesWithPaidOut = (summaries || []).filter((s) => s.paidOut != null);
   if (summariesWithPaidOut.length === 0) {
@@ -515,15 +479,6 @@ function renderPayoutsTable(records, summaries) {
   }
   card.hidden = false;
 
-  const ourPayoutsByYear = new Map();
-  records
-    .filter((r) => r.type === "payout")
-    .forEach((r) => {
-      if (!r.date) return;
-      const year = r.date.slice(0, 4);
-      ourPayoutsByYear.set(year, (ourPayoutsByYear.get(year) || 0) + r.amount);
-    });
-
   const tbody = document.getElementById("payouts-table-body");
   tbody.replaceChildren();
 
@@ -531,19 +486,13 @@ function renderPayoutsTable(records, summaries) {
     .slice()
     .sort((a, b) => a.year - b.year)
     .forEach((summary) => {
-      const ours = ourPayoutsByYear.get(String(summary.year));
-
       const tr = document.createElement("tr");
       const yearTd = document.createElement("td");
       yearTd.textContent = String(summary.year);
       const officialTd = document.createElement("td");
       officialTd.className = "num";
       officialTd.textContent = formatCurrency(Math.abs(summary.paidOut));
-      const oursTd = document.createElement("td");
-      oursTd.className = "num";
-      oursTd.textContent = ours == null ? "—" : formatCurrency(Math.abs(ours));
-
-      tr.append(yearTd, officialTd, oursTd);
+      tr.append(yearTd, officialTd);
       tbody.appendChild(tr);
     });
 }
@@ -583,35 +532,10 @@ function applyRange(range) {
   renderAll();
 }
 
-async function loadSelfUsernames() {
-  const stored = await getMeta("selfUsernames");
-  if (Array.isArray(stored)) return stored;
-  await setMeta("selfUsernames", DEFAULT_SELF_USERNAMES);
-  return DEFAULT_SELF_USERNAMES;
-}
-
 async function init() {
   allRecords = await getAllTransactions();
-  const [lastSyncAt, yearlySummaries, storedSelfUsernames] = await Promise.all([
-    getMeta("lastSyncAt"),
-    getAllYearlySummaries(),
-    loadSelfUsernames()
-  ]);
-  selfUsernames = storedSelfUsernames;
-  document.getElementById("self-usernames-input").value = selfUsernames.join(", ");
-  renderVerifyTable(allRecords, yearlySummaries);
-  renderPayoutsTable(allRecords, yearlySummaries);
-
-  document.getElementById("save-self-usernames").addEventListener("click", async () => {
-    const raw = document.getElementById("self-usernames-input").value;
-    selfUsernames = raw
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-    await setMeta("selfUsernames", selfUsernames);
-    renderVerifyTable(allRecords, yearlySummaries);
-    if (allRecords.length > 0) renderAll();
-  });
+  const [lastSyncAt, yearlySummaries] = await Promise.all([getMeta("lastSyncAt"), getAllYearlySummaries()]);
+  renderPayoutsTable(yearlySummaries);
 
   document.getElementById("sync-status").textContent = lastSyncAt
     ? `Last synced ${new Date(lastSyncAt).toLocaleString()} · ${allRecords.length.toLocaleString()} transactions`

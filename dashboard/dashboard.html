@@ -32,48 +32,18 @@
 
       <section class="stat-tiles" id="stat-tiles"></section>
 
-      <section class="chart-card" id="verify-card" hidden>
-        <h2>Verify against Spoonflower's official totals</h2>
-        <p class="muted">
-          From Spoonflower's own Yearly Spoondollar Statements page ("Total Earned From Sales" per year) — run
-          <strong>Verify Totals</strong> on the Spoondollar history page to refresh this. Spoonflower's official total
-          excludes royalties from designs you bought yourself, which this dashboard doesn't know about automatically —
-          exclude those buyer usernames (including past usernames) below to match.
-        </p>
-        <div class="settings-row">
-          <label for="self-usernames-input">Exclude your own purchases (usernames, comma-separated)</label>
-          <div class="settings-row__controls">
-            <input id="self-usernames-input" type="text" placeholder="e.g. yourusername, oldusername" />
-            <button id="save-self-usernames" class="btn-secondary">Save</button>
-          </div>
-        </div>
-        <table id="verify-table">
-          <thead>
-            <tr>
-              <th>Year</th>
-              <th class="num">Our total</th>
-              <th class="num">Official total</th>
-              <th class="num">Difference</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="verify-table-body"></tbody>
-        </table>
-      </section>
-
       <section class="chart-card" id="payouts-card" hidden>
         <h2>Payouts</h2>
         <p class="muted">
-          What Spoonflower says it paid out per year — compare this to your bank deposits, not to the revenue totals
-          above. Payouts lag earnings (money earned late in a year is often paid out early the next), so this will
-          never match "Total Earned From Sales" for the same calendar year even when everything is correct.
+          What Spoonflower says it paid out per year, from the Yearly Spoondollar Statements page — run
+          <strong>Verify Totals</strong> on the Spoondollar history page to refresh this. Compare against your bank
+          deposits.
         </p>
         <table id="payouts-table">
           <thead>
             <tr>
               <th>Year</th>
               <th class="num">Spoonflower says paid out</th>
-              <th class="num">Synced payout records</th>
             </tr>
           </thead>
           <tbody id="payouts-table-body"></tbody>
@@ -96,19 +66,25 @@
         </section>
       </div>
 
+      <section class="chart-card" id="repeat-buyers-card" hidden>
+        <h2>Repeat buyers</h2>
+        <table id="repeat-buyers-table">
+          <thead>
+            <tr>
+              <th>Buyer</th>
+              <th class="num">Purchases</th>
+              <th class="num">Total spent</th>
+              <th>First purchase</th>
+              <th>Last purchase</th>
+            </tr>
+          </thead>
+          <tbody id="repeat-buyers-table-body"></tbody>
+        </table>
+      </section>
+
       <section class="chart-card" id="returns-card" hidden>
         <h2>Returns</h2>
         <p id="returns-total" class="muted"></p>
-        <table id="returns-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Design</th>
-              <th class="num">Amount</th>
-            </tr>
-          </thead>
-          <tbody id="returns-table-body"></tbody>
-        </table>
       </section>
 
       <section class="chart-card">
