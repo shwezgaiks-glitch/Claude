@@ -376,11 +376,44 @@ function renderAll() {
   const categories = Array.from(byCategory.values()).sort((a, b) => b.value - a.value);
   renderBarChart(document.getElementById("category-chart"), categories);
 
+  renderReturns(scoped);
   renderTable(scoped);
 }
 
+function renderReturns(scopedRecords) {
+  const returns = scopedRecords.filter((r) => r.type === "return");
+  const card = document.getElementById("returns-card");
+  if (returns.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const total = returns.reduce((s, r) => s + r.amount, 0); // amounts are negative
+  document.getElementById("returns-total").textContent =
+    `${formatCurrency(Math.abs(total))} across ${returns.length} order${returns.length === 1 ? "" : "s"} — excluded from revenue above.`;
+
+  const tbody = document.getElementById("returns-table-body");
+  tbody.replaceChildren();
+  returns
+    .slice()
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+    .forEach((r) => {
+      const tr = document.createElement("tr");
+      const dateTd = document.createElement("td");
+      dateTd.textContent = r.date || "";
+      const designTd = document.createElement("td");
+      designTd.textContent = r.designName || "";
+      const amountTd = document.createElement("td");
+      amountTd.className = "num";
+      amountTd.textContent = formatCurrency(r.amount);
+      tr.append(dateTd, designTd, amountTd);
+      tbody.appendChild(tr);
+    });
+}
+
 function renderTable(scopedRecords) {
-  let rows = scopedRecords.filter((r) => r.type !== "payout");
+  let rows = scopedRecords.filter((r) => r.type !== "payout" && r.type !== "return");
   if (currentSearch) {
     rows = rows.filter(
       (r) => (r.designName || "").toLowerCase().includes(currentSearch) || (r.productName || "").toLowerCase().includes(currentSearch)
