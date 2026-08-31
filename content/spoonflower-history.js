@@ -79,26 +79,31 @@
     return true;
   }
 
-  // Waits for the table to re-render after a search, via MutationObserver
-  // with a timeout fallback (some searches may return an identical table,
-  // which wouldn't otherwise fire a mutation).
-  function waitForTableUpdate(table, timeoutMs) {
-    return new Promise((resolve) => {
-      let done = false;
-      const observer = new MutationObserver(() => {
-        if (done) return;
-        done = true;
-        observer.disconnect();
-        resolve();
-      });
-      observer.observe(table.parentElement || table, { childList: true, subtree: true });
-      setTimeout(() => {
-        if (done) return;
-        done = true;
-        observer.disconnect();
-        resolve();
-      }, timeoutMs);
-    });
+  // Waits for the table to settle after a search. Deliberately re-queries
+  // findTable() on every poll rather than watching a captured node/parent —
+  // if the page's AJAX response replaces the whole <table> element (rather
+  // than just its rows), a captured reference goes stale and detached, and
+  // a MutationObserver watching its (now-null) parentElement throws. Polling
+  // for a signature (row count + first row id) to stop changing sidesteps
+  // that entirely.
+  async function waitForTableSettled(timeoutMs) {
+    const start = Date.now();
+    let lastSignature;
+    let stableTicks = 0;
+    while (Date.now() - start < timeoutMs) {
+      await sleep(250);
+      const t = findTable();
+      const firstRowId = t?.querySelector("tr.sale, tr.debit")?.id || "";
+      const signature = t ? `${t.querySelectorAll("tr").length}:${firstRowId}` : null;
+      if (signature !== null && signature === lastSignature) {
+        stableTicks++;
+        if (stableTicks >= 2) return true;
+      } else {
+        stableTicks = 0;
+      }
+      lastSignature = signature;
+    }
+    return false;
   }
 
   function sendToBackground(records) {
@@ -140,57 +145,72 @@
     });
   }
 
-  async function runRange(panel, table, fromISO, toISO, label) {
+  async function runRange(panel, fromISO, toISO, label) {
+    const beforeRowId = findTable()?.querySelector("tr.sale, tr.debit")?.id || "";
     const ok = await setDateRangeAndSearch(fromISO, toISO);
     if (!ok) {
       setStatus(panel, "Couldn't control the date filter automatically — see browser console for a diagnostic dump.");
       return null;
     }
-    await waitForTableUpdate(table, 8000);
-    await sleep(150); // let any post-render formatting settle
-    const records = SpoonflowerParser.parseHistoryTable(findTable() || table);
+    const settled = await waitForTableSettled(8000);
+    if (!settled) {
+      console.warn(`[Spoonflower Analytics] Table didn't settle for range ${fromISO}..${toISO} (beforeRowId=${beforeRowId}) — parsing whatever is currently rendered.`);
+    }
+    await sleep(150); // let any post-settle formatting finish
+    const table = findTable();
+    if (!table) {
+      setStatus(panel, `${label}: table disappeared from the page — stopping.`);
+      return null;
+    }
+    const records = SpoonflowerParser.parseHistoryTable(table);
     const result = await sendToBackground(records);
     setStatus(panel, `${label}: +${result.added} new (${result.updated} already known)`);
     return result;
   }
 
   async function runBackfill(panel) {
-    const table = findTable();
-    if (!table) return;
+    if (!findTable()) return;
     setButtonsDisabled(panel, true);
     const startYear = 2008;
     const endYear = new Date().getFullYear();
     let totalAdded = 0;
     let totalUpdated = 0;
 
-    for (let year = startYear; year <= endYear; year++) {
-      const from = `${year}-01-01`;
-      const to = year === endYear ? todayISO() : `${year}-12-31`;
-      setStatus(panel, `Fetching ${year}…`);
-      const result = await runRange(panel, table, from, to, String(year));
-      if (!result) {
-        setButtonsDisabled(panel, false);
-        return;
+    try {
+      for (let year = startYear; year <= endYear; year++) {
+        const from = `${year}-01-01`;
+        const to = year === endYear ? todayISO() : `${year}-12-31`;
+        setStatus(panel, `Fetching ${year}…`);
+        const result = await runRange(panel, from, to, String(year));
+        if (!result) return;
+        totalAdded += result.added;
+        totalUpdated += result.updated;
+        await sleep(500); // be gentle with Spoonflower's server
       }
-      totalAdded += result.added;
-      totalUpdated += result.updated;
-      await sleep(500); // be gentle with Spoonflower's server
+      setStatus(panel, `Done. ${totalAdded} new transactions, ${totalUpdated} already known across 2008–${endYear}.`);
+    } catch (err) {
+      console.error("[Spoonflower Analytics] Backfill stopped early due to an error:", err);
+      setStatus(panel, `Stopped early after an error (${totalAdded} new so far) — see console, then try Full Backfill again to resume.`);
+    } finally {
+      setButtonsDisabled(panel, false);
     }
-
-    setStatus(panel, `Done. ${totalAdded} new transactions, ${totalUpdated} already known.`);
-    setButtonsDisabled(panel, false);
   }
 
   async function runSyncRecent(panel) {
-    const table = findTable();
-    if (!table) return;
+    if (!findTable()) return;
     setButtonsDisabled(panel, true);
-    const to = todayISO();
-    const fromDate = new Date();
-    fromDate.setDate(fromDate.getDate() - 90);
-    const from = fromDate.getFullYear() + "-" + pad(fromDate.getMonth() + 1) + "-" + pad(fromDate.getDate());
-    await runRange(panel, table, from, to, "Last 90 days");
-    setButtonsDisabled(panel, false);
+    try {
+      const to = todayISO();
+      const fromDate = new Date();
+      fromDate.setDate(fromDate.getDate() - 90);
+      const from = fromDate.getFullYear() + "-" + pad(fromDate.getMonth() + 1) + "-" + pad(fromDate.getDate());
+      await runRange(panel, from, to, "Last 90 days");
+    } catch (err) {
+      console.error("[Spoonflower Analytics] Sync Recent failed:", err);
+      setStatus(panel, "Sync failed — see console for details.");
+    } finally {
+      setButtonsDisabled(panel, false);
+    }
   }
 
   function openDashboard() {
