@@ -1,31 +1,50 @@
 # Spoonflower Sales Analytics
 
-A Chrome extension that turns your Spoonflower "Spoondollar history" ledger
-into a local analytics dashboard: revenue trends, best/worst sellers, and a
+A Chrome extension that turns your Spoonflower Spoondollar sales history into
+a local analytics dashboard: revenue trends, best/worst sellers, and a
 product-type breakdown — all built from data already visible to you on
 Spoonflower, stored entirely on your own machine.
 
 ## How it works
 
-Spoonflower doesn't expose a public sales API, so this extension reads the
-same HTML table your browser already renders on your Spoondollar history
-page, parses it into structured records, and stores them locally in the
-browser's IndexedDB. Nothing is sent anywhere — there's no backend, no
-account, no network calls beyond the Spoonflower pages you're already on.
+Spoonflower doesn't expose a public sales API, but the "Yearly Spoondollar
+Statements" page (`/account/<id>?sub_action=spoondollars&transition=statements`)
+offers a CSV export per year with every field this extension needs already
+broken into its own column (date, design, design id, product, substrate,
+buyer, amount). The extension fetches that CSV directly (same-origin, one
+request per year, no page navigation) and parses it into structured records
+stored locally in IndexedDB. Nothing is sent anywhere — there's no backend,
+no account, no network calls beyond the Spoonflower pages you're already
+logged into.
 
-- **Content script** (`content/`) — detects the Spoondollar history table on
-  the page, injects a small sync panel above it, and can drive the page's own
-  date-range filter to pull your full history (back to 2021 by default —
-  Spoonflower itself supports back to 2008, so adjust `startYear` in
-  `content/spoonflower-history.js` if you started selling earlier) in one pass.
-- **Background service worker** (`background/`) — receives parsed rows from
-  the content script and writes them to IndexedDB (the content script itself
-  can't reach the extension's storage directly, since it runs at
+An earlier version scraped the separate "Spoondollar history" ledger table
+instead, driving its date-range filter programmatically to page through
+history. That turned out to be unreliable — the filter's form controls
+couldn't be located reliably by heuristic, so every "year" silently
+re-scraped whatever the page defaulted to. The CSV export needs none of
+that: the year is a plain URL query parameter, and the whole year comes
+back in one response.
+
+- **Content script** (`content/`) — on the Spoondollar history page, injects
+  a small sync panel with:
+  - **Full Backfill** — fetches each year's CSV statement from 2021 (adjust
+    `startYear` in `content/spoonflower-history.js` if you started selling
+    earlier; Spoonflower supports back to 2008) through the current year.
+  - **Sync This Year** — re-fetches just the current year's CSV, for
+    catching up after the initial backfill.
+  - **Verify Totals** — fetches the *summary* numbers from the same Yearly
+    Statements page (Total Earned From Sales, Paid Out, Spent, Withheld per
+    year) as a cross-check against the synced transactions — never as the
+    transaction source itself, since that summary page has no stable
+    per-row id to dedupe on.
+- **Background service worker** (`background/`) — receives parsed records
+  from the content script and writes them to IndexedDB (the content script
+  itself can't reach the extension's storage directly, since it runs at
   spoonflower.com's origin).
 - **Dashboard** (`dashboard/`) — a full analytics view: revenue trend, top
   designs, revenue by category (wallpaper/fabric), a searchable/sortable
   transaction table, CSV export, and a verification table comparing synced
-  totals against Spoonflower's own official per-year figures.
+  totals against Spoonflower's official per-year figures.
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)
@@ -38,47 +57,32 @@ account, no network calls beyond the Spoonflower pages you're already on.
 
 ## Using it
 
-1. On the Spoondollar history page, click **Full Backfill (2021–now)**. This
-   steps through your history year by year, scraping and storing each batch.
-   It takes a little while for long histories — the panel shows progress.
-2. Click **Open Dashboard** (from the panel or the toolbar popup) to see your
-   analytics.
-3. On future visits, **Sync Recent (90 days)** is enough to catch up — the
-   backfill is idempotent, so re-running it never creates duplicates.
-4. Click **Verify Totals** to cross-check your synced data against
-   Spoonflower's own numbers. This fetches the "Yearly Spoondollar
-   Statements" page (`/account/<id>?sub_action=spoondollars&transition=statements&year=<year>`)
-   for each year and reads its official "Total Earned From Sales" figure —
-   *not* used as a transaction source (that page has no stable per-row id to
-   dedupe on), only as a check. The dashboard shows a year-by-year
-   our-total-vs-official-total table so you can see at a glance whether the
-   ledger scrape captured everything.
-
-## Known limitation: the date-filter selectors
-
-The content script drives the page's FROM DATE / TO DATE fields and Search
-button by best-effort heuristics (matching on nearby label text like "date"
-and a button whose text is "Search"), since the exact markup of that form
-wasn't available while building this. If **Full Backfill** or **Sync Recent**
-reports it "couldn't locate the date filter controls," open the browser
-console on that page — it logs which of the two date inputs and the search
-button it did/didn't find — and tighten the selectors in
-`content/spoonflower-history.js` (`guessDateInputs` / `guessSearchButton`)
-against the real form HTML.
+1. On the Spoondollar history page, click **Full Backfill (2021–now)**. Each
+   year is one fetch, so this is fast — a handful of seconds for several
+   years of history.
+2. Click **Verify Totals** to cross-check against Spoonflower's own official
+   per-year totals.
+3. Click **Open Dashboard** (from the panel or the toolbar popup) to see your
+   analytics, including the verification table.
+4. On future visits, **Sync This Year** is enough to catch up — syncing is
+   idempotent (records are upserted by a synthesized id derived from the
+   CSV's second-precision timestamp, design id, and amount), so re-running
+   it never creates duplicates.
 
 ## Data & privacy
 
 - Everything is stored locally in your browser's IndexedDB; nothing is
   transmitted off your machine.
-- The ledger sometimes includes buyer usernames or lightly-obfuscated email
-  addresses (e.g. `name@gmail_com`). These are stored locally like any other
-  field but are not surfaced in the dashboard's charts — only in the raw
-  transaction table and CSV export.
+- The synced data includes buyer usernames as shown in Spoonflower's own
+  export. These are stored locally like any other field but are not
+  surfaced in the dashboard's charts — only in the raw transaction table and
+  CSV export.
 - Uninstalling the extension removes its local database.
 
 ## Extending
 
 This first version covers: revenue trend, best/worst sellers, product-type
-(wallpaper/fabric) breakdown, and CSV export. Natural next additions:
-Spoondollar payout tracking (earned vs. paid out over time), and custom
-tagging/grouping of designs into your own collections.
+(wallpaper/fabric) breakdown, official-totals verification, and CSV export.
+Natural next additions: Spoondollar payout tracking (earned vs. paid out
+over time, using the "Total Paid Out" figure already fetched by Verify
+Totals), and custom tagging/grouping of designs into your own collections.
