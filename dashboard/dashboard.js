@@ -466,10 +466,18 @@ function renderRepeatBuyers(earnings) {
     if (r.date && (!prev.first || r.date < prev.first)) prev.first = r.date;
     if (r.date && (!prev.last || r.date > prev.last)) prev.last = r.date;
 
-    const designKey = r.designName || r.productName || "Unknown";
-    const designPrev = prev.designs.get(designKey) || { design: designKey, count: 0, total: 0 };
+    const designKey = r.designId || r.designName || r.productName || "Unknown";
+    const designPrev = prev.designs.get(designKey) || {
+      design: r.designName || r.productName || "Unknown",
+      designId: r.designId || null,
+      count: 0,
+      total: 0,
+      productTypeRevenue: new Map()
+    };
     designPrev.count += 1;
     designPrev.total += r.amount;
+    const slug = classifyProductType(r.productRaw, r.productName, r.category);
+    designPrev.productTypeRevenue.set(slug, (designPrev.productTypeRevenue.get(slug) || 0) + r.amount);
     prev.designs.set(designKey, designPrev);
 
     byBuyer.set(r.buyer, prev);
@@ -527,12 +535,21 @@ function renderRepeatBuyers(earnings) {
       .sort((a, c) => c.total - a.total)
       .forEach((d) => {
         const li = document.createElement("li");
-        const nameSpan = document.createElement("span");
-        nameSpan.textContent = d.design; // scraped design name — textContent only
+        let nameEl;
+        if (d.designId) {
+          const bestSlug = Array.from(d.productTypeRevenue.entries()).sort((a, c) => c[1] - a[1])[0][0];
+          nameEl = document.createElement("a");
+          nameEl.href = designUrl(d.designId, bestSlug);
+          nameEl.target = "_blank";
+          nameEl.rel = "noopener noreferrer";
+        } else {
+          nameEl = document.createElement("span");
+        }
+        nameEl.textContent = d.design; // scraped design name — textContent only
         const valueSpan = document.createElement("span");
         valueSpan.className = "num";
         valueSpan.textContent = `${d.count}× — ${formatCurrency(d.total)}`;
-        li.append(nameSpan, valueSpan);
+        li.append(nameEl, valueSpan);
         designList.appendChild(li);
       });
     detailTd.appendChild(designList);
@@ -575,14 +592,35 @@ function renderTable(scopedRecords) {
   tbody.replaceChildren();
   shown.forEach((r) => {
     const tr = document.createElement("tr");
-    [r.date || "", r.designName || "", r.productName || "", r.category || "", r.buyer || "guest", formatCurrency(r.amount)].forEach(
-      (val, i) => {
-        const td = document.createElement("td");
-        if (i === 5) td.className = "num";
-        td.textContent = val;
-        tr.appendChild(td);
-      }
-    );
+
+    const dateTd = document.createElement("td");
+    dateTd.textContent = r.date || "";
+
+    const designTd = document.createElement("td");
+    if (r.designId) {
+      const slug = classifyProductType(r.productRaw, r.productName, r.category);
+      const link = document.createElement("a");
+      link.className = "design-link";
+      link.href = designUrl(r.designId, slug);
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = r.designName || ""; // scraped design name — textContent only
+      designTd.appendChild(link);
+    } else {
+      designTd.textContent = r.designName || "";
+    }
+
+    const productTd = document.createElement("td");
+    productTd.textContent = r.productName || "";
+    const categoryTd = document.createElement("td");
+    categoryTd.textContent = r.category || "";
+    const buyerTd = document.createElement("td");
+    buyerTd.textContent = r.buyer || "guest";
+    const amountTd = document.createElement("td");
+    amountTd.className = "num";
+    amountTd.textContent = formatCurrency(r.amount);
+
+    tr.append(dateTd, designTd, productTd, categoryTd, buyerTd, amountTd);
     tbody.appendChild(tr);
   });
 

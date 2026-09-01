@@ -317,6 +317,25 @@ a.bar-label:focus-visible {
   color: var(--text-primary);
   white-space: nowrap;
 }
+.buyer-design-list li a {
+  color: inherit;
+  text-decoration: none;
+}
+.buyer-design-list li a:hover,
+.buyer-design-list li a:focus-visible {
+  color: var(--series-1);
+  text-decoration: underline;
+}
+
+.design-link {
+  color: inherit;
+  text-decoration: none;
+}
+.design-link:hover,
+.design-link:focus-visible {
+  color: var(--series-1);
+  text-decoration: underline;
+}
 
 table {
   width: 100%;
