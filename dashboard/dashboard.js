@@ -333,6 +333,9 @@ function getRangeBounds(range) {
   if (range === "ytd") {
     return { from: now.getFullYear() + "-01-01", to: isoDate(now) };
   }
+  if (range === "month") {
+    return { from: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`, to: isoDate(now) };
+  }
   return null;
 }
 
