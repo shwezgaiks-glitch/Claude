@@ -33,28 +33,30 @@
 
       <section class="stat-tiles" id="stat-tiles"></section>
 
-      <section class="chart-card" id="payouts-card" hidden>
-        <h2>Payouts</h2>
-        <p class="muted">
-          What Spoonflower says it paid out per year, from the Yearly Spoondollar Statements page — run
-          <strong>Verify Totals</strong> on the Spoondollar history page to refresh this. Compare against your bank
-          deposits.
-        </p>
-        <table id="payouts-table">
-          <thead>
-            <tr>
-              <th>Year</th>
-              <th class="num">Spoonflower says paid out</th>
-            </tr>
-          </thead>
-          <tbody id="payouts-table-body"></tbody>
-        </table>
-      </section>
+      <div class="two-col">
+        <section class="chart-card" id="payouts-card" hidden>
+          <h2>Payouts</h2>
+          <p class="muted">
+            What Spoonflower says it paid out per year, from the Yearly Spoondollar Statements page — run
+            <strong>Verify Totals</strong> on the Spoondollar history page to refresh this. Compare against your bank
+            deposits.
+          </p>
+          <table id="payouts-table">
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th class="num">Spoonflower says paid out</th>
+              </tr>
+            </thead>
+            <tbody id="payouts-table-body"></tbody>
+          </table>
+        </section>
 
-      <section class="chart-card">
-        <h2>Revenue over time</h2>
-        <div id="trend-chart" class="chart-container"></div>
-      </section>
+        <section class="chart-card">
+          <h2>Revenue over time</h2>
+          <div id="trend-chart" class="chart-container"></div>
+        </section>
+      </div>
 
       <div class="two-col">
         <section class="chart-card">
