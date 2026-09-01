@@ -141,6 +141,10 @@ main {
   gap: 12px;
   margin-bottom: 20px;
 }
+.stat-tiles--3col {
+  grid-template-columns: repeat(3, 1fr);
+  margin-bottom: 0;
+}
 
 .stat-tile {
   background: var(--surface);

@@ -657,6 +657,85 @@ function renderReturnRateByDesign(rollups) {
   });
 }
 
+// Whether designs make most of their money in a quick spike right after
+// listing, or build up steadily over a long tail — informs whether it's
+// worth chasing trends or building an evergreen catalog. For each design
+// with a first sale at least 90 days ago (so all three windows have a fair
+// chance to be observed — a design listed last week can't have 90-day
+// data yet), computes what % of its revenue-to-date arrived within 30/60/90
+// days of that first sale, then averages that % across designs. Deliberately
+// all-time / unscoped by the date filter — it's a per-design cohort
+// question, not a "how did this period do" one.
+function computeNewDesignPerformance(records) {
+  const byDesign = new Map();
+  records
+    .filter(isEarningRecord)
+    .filter((r) => r.designId && r.date)
+    .forEach((r) => {
+      const prev = byDesign.get(r.designId) || { firstSaleDate: r.date, sales: [] };
+      if (r.date < prev.firstSaleDate) prev.firstSaleDate = r.date;
+      prev.sales.push(r);
+      byDesign.set(r.designId, prev);
+    });
+
+  const today = new Date();
+  const shares = { 30: [], 60: [], 90: [] };
+  let eligibleCount = 0;
+
+  byDesign.forEach((d) => {
+    const firstDate = new Date(d.firstSaleDate);
+    const daysSinceFirst = Math.floor((today - firstDate) / 86400000);
+    if (daysSinceFirst < 90) return; // not enough history for a fair 90-day read yet
+    const lifetimeRevenue = d.sales.reduce((s, r) => s + r.amount, 0);
+    if (lifetimeRevenue <= 0) return;
+    eligibleCount++;
+    [30, 60, 90].forEach((windowDays) => {
+      const cutoff = new Date(firstDate);
+      cutoff.setDate(cutoff.getDate() + windowDays);
+      const cutoffIso = isoDate(cutoff);
+      const windowRevenue = d.sales.filter((r) => r.date < cutoffIso).reduce((s, r) => s + r.amount, 0);
+      shares[windowDays].push((windowRevenue / lifetimeRevenue) * 100);
+    });
+  });
+
+  const avg = (arr) => (arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null);
+  return { eligibleCount, avg30: avg(shares[30]), avg60: avg(shares[60]), avg90: avg(shares[90]) };
+}
+
+function renderNewDesignPerformance(records) {
+  const card = document.getElementById("new-design-performance-card");
+  const result = computeNewDesignPerformance(records);
+
+  if (result.eligibleCount < 3) {
+    card.hidden = true; // too few designs with 90+ days of history for a meaningful average
+    return;
+  }
+  card.hidden = false;
+
+  document.getElementById("new-design-performance-caption").textContent =
+    `Average share of a design's revenue-to-date earned within N days of its first sale, across ${result.eligibleCount} design(s) with at least 90 days of history. Higher early numbers mean your designs spike and taper off; lower ones mean they build steadily.`;
+
+  const tiles = [
+    { label: "First 30 days", value: `${result.avg30.toFixed(0)}%` },
+    { label: "First 60 days", value: `${result.avg60.toFixed(0)}%` },
+    { label: "First 90 days", value: `${result.avg90.toFixed(0)}%` }
+  ];
+  const container = document.getElementById("new-design-performance-tiles");
+  container.replaceChildren();
+  tiles.forEach((t) => {
+    const div = document.createElement("div");
+    div.className = "stat-tile";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = t.label;
+    const value = document.createElement("div");
+    value.className = "value";
+    value.textContent = t.value;
+    div.append(label, value);
+    container.appendChild(div);
+  });
+}
+
 // Attributes each earning's revenue to every tag its design carries (a
 // design with 5 tags counts its full revenue toward all 5, not 1/5th each —
 // this answers "which tags show up on my best sellers", not "how is
@@ -960,6 +1039,7 @@ async function init() {
   const designRollups = buildDesignRollups(allRecords);
   renderDesignAging(designRollups);
   renderReturnRateByDesign(designRollups);
+  renderNewDesignPerformance(allRecords);
 
   document.getElementById("sync-status").textContent = lastSyncAt
     ? `Last synced ${new Date(lastSyncAt).toLocaleString()} · ${allRecords.length.toLocaleString()} transactions`

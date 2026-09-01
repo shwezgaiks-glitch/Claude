@@ -50,11 +50,14 @@ back in one response.
   from the content script and writes them to IndexedDB (the content script
   itself can't reach the extension's storage directly, since it runs at
   spoonflower.com's origin).
-- **Dashboard** (`dashboard/`) — a full analytics view: revenue trend, top
-  designs (linked to their Spoonflower product pages), revenue by category
-  and by substrate (wallpaper/fabric types), revenue by tag, repeat buyers
-  (with a per-buyer design breakdown), returns, official payout figures, a
-  searchable/sortable transaction table, and CSV export.
+- **Dashboard** (`dashboard/`) — a full analytics view: revenue trend with a
+  period-over-period delta, top designs (linked to their Spoonflower
+  product pages), revenue by category and by substrate (wallpaper/fabric
+  types), revenue by tag, design aging and return rate by design, new
+  design performance (how much of a design's revenue arrives in its first
+  30/60/90 days), repeat buyers (with a per-buyer design breakdown),
+  returns, official payout figures, a searchable/sortable transaction
+  table, and CSV export.
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)
@@ -94,9 +97,12 @@ back in one response.
 
 ## Extending
 
-This first version covers: revenue trend, best/worst sellers, product-type
-(wallpaper/fabric) breakdown, returns, repeat buyers, official payout
-figures, revenue by tag, and CSV export. Natural next additions: a
-top-vs-bottom design name/keyword comparison, per-design revenue over
-lifetime (spike-and-decay vs. evergreen), and a design-performance view (if
-Spoonflower ever exposes view/favorite counts alongside sales).
+This version covers: revenue trend with period-over-period deltas,
+best/worst sellers, product-type (wallpaper/fabric) breakdown, revenue by
+tag, design aging, return rate by design, new design performance
+(30/60/90-day revenue share), returns, repeat buyers, official payout
+figures, and CSV export. A natural next addition: a top-vs-bottom design
+name/keyword comparison (what words show up on your best sellers vs. your
+weakest ones) — a design-performance view showing view/favorite counts
+isn't possible unless Spoonflower exposes those alongside sales somewhere
+we haven't found yet.
