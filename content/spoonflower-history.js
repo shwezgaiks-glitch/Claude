@@ -93,6 +93,87 @@
     return SpoonflowerParser.parseYearlyCsvStatement(text);
   }
 
+  // Parses one page of the seller's design library in "batch" view
+  // (spoonflower.com/designs?...&look=batch&...) into per-design records.
+  // Each design is a <tr id="{designId}"> containing, among a lot of
+  // editing-UI markup: the full name in a text input (#text_area_{id},
+  // read via .value so the browser has already decoded entities), a status
+  // line ("For Sale" etc. — the OTHER .library_box_status element carries
+  // "Design ID: ..." and is marked .selectable, so it's excluded), and the
+  // full tag list as a single comma-joined <p class="edit-text"> inside
+  // #keywords_{id} (a decoupled duplicate edit form nearby holds the same
+  // tags one-per-element for removal buttons, but the comma-joined text is
+  // simpler to split and equally complete).
+  function parseDesignLibraryPage(doc) {
+    const rows = Array.from(doc.querySelectorAll("tr[id]")).filter((tr) => /^\d+$/.test(tr.id));
+    return rows.map((tr) => {
+      const designId = tr.id;
+      const nameInput = tr.querySelector(`#text_area_${designId}`);
+      const name = nameInput ? nameInput.value : (tr.querySelector(".design_name")?.textContent || "").trim();
+      const statusEl = tr.querySelector(".library_box_status:not(.selectable)");
+      const status = statusEl ? SpoonflowerParser.normalizeWhitespace(statusEl.textContent) : null;
+      const keywordsP = tr.querySelector(`#keywords_${designId} .edit-text`);
+      const tags = keywordsP
+        ? keywordsP.textContent
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [];
+      return { designId, name, status, tags };
+    });
+  }
+
+  // Same-origin fetch, no account id needed (scoped to whoever's logged in).
+  // number=72 is the page size observed on the live site; the loop in
+  // runSyncDesignTags stops as soon as a page comes back with zero design
+  // rows, so the exact page size only affects how many requests it takes.
+  async function fetchDesignLibraryPage(pageNum) {
+    const params = new URLSearchParams({
+      designs_page: String(pageNum),
+      look: "batch",
+      number: "72",
+      sort: "newest",
+      view: "all"
+    });
+    const url = `${location.origin}/designs?${params.toString()}`;
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) throw new Error(`HTTP ${res.status} fetching design library page ${pageNum}`);
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return parseDesignLibraryPage(doc);
+  }
+
+  async function runSyncDesignTags(panel) {
+    setButtonsDisabled(panel, true);
+    const MAX_PAGES = 200; // safety cap — 200 * 72 ≈ 14,400 designs
+    let allDesigns = [];
+    try {
+      for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
+        setStatus(panel, `Fetching design library page ${pageNum}…`);
+        const designs = await fetchDesignLibraryPage(pageNum);
+        if (designs.length === 0) break;
+        allDesigns = allDesigns.concat(designs);
+        await sleep(300); // be gentle with Spoonflower's server
+      }
+      const r = await safeSendMessage({ type: "SYNC_DESIGN_TAGS", records: allDesigns });
+      if (!r.ok) {
+        setStatus(
+          panel,
+          r.invalidated
+            ? "This extension was reloaded/updated — refresh this page (F5) and try again."
+            : "Sync Design Tags failed to save — see console for details."
+        );
+        return;
+      }
+      setStatus(panel, `Synced tags for ${allDesigns.length} design(s) — open the Dashboard to see revenue by tag.`);
+    } catch (err) {
+      console.error("[Spoonflower Analytics] Sync Design Tags failed:", err);
+      setStatus(panel, "Sync Design Tags failed — see console for details.");
+    } finally {
+      setButtonsDisabled(panel, false);
+    }
+  }
+
   // chrome.runtime.sendMessage throws SYNCHRONOUSLY (not via lastError) when
   // the extension has been reloaded/updated since this content script was
   // injected — "Extension context invalidated." A page left open across a
@@ -136,6 +217,7 @@
       <button type="button" data-action="backfill">Full Backfill (2021–now)</button>
       <button type="button" class="sfa-secondary" data-action="sync-recent">Sync This Year</button>
       <button type="button" class="sfa-secondary" data-action="verify-totals">Verify Totals</button>
+      <button type="button" class="sfa-secondary" data-action="sync-design-tags">Sync Design Tags</button>
       <button type="button" class="sfa-secondary" data-action="open-dashboard">Open Dashboard</button>
       <span class="sfa-panel__status" data-role="status"></span>
     `;
@@ -270,6 +352,7 @@
       if (action === "backfill") runBackfill(panel);
       else if (action === "sync-recent") runSyncRecent(panel);
       else if (action === "verify-totals") runVerifyTotals(panel);
+      else if (action === "sync-design-tags") runSyncDesignTags(panel);
       else if (action === "open-dashboard") openDashboard();
     });
 

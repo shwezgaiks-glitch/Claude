@@ -1,4 +1,4 @@
-import { getAllTransactions, getMeta, getAllYearlySummaries, clearAllTransactions } from "../lib/db.js";
+import { getAllTransactions, getMeta, getAllYearlySummaries, getAllDesignTags, clearAllTransactions } from "../lib/db.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -313,6 +313,7 @@ let allRecords = [];
 let currentRange = "all";
 let currentSort = { key: "date", dir: "desc" };
 let currentSearch = "";
+let tagsByDesignId = new Map(); // designId -> string[] tags, from Sync Design Tags
 
 function isEarningRecord(r) {
   return r.type === "sale" || r.type === "fill_a_yard";
@@ -434,9 +435,41 @@ function renderAll() {
   renderSubstrateBreakdown(document.getElementById("wallpaper-types-chart"), earnings, "Wallpaper");
   renderSubstrateBreakdown(document.getElementById("fabric-types-chart"), earnings, "Fabric");
 
+  renderTagRevenue(earnings);
   renderRepeatBuyers(earnings);
   renderReturns(scoped);
   renderTable(scoped);
+}
+
+// Attributes each earning's revenue to every tag its design carries (a
+// design with 5 tags counts its full revenue toward all 5, not 1/5th each —
+// this answers "which tags show up on my best sellers", not "how is
+// revenue partitioned"), so the ranked total intentionally exceeds overall
+// revenue. Ranked single-measure bar chart like Top designs/substrates.
+function renderTagRevenue(earnings) {
+  const card = document.getElementById("tags-card");
+  if (tagsByDesignId.size === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const byTag = new Map();
+  earnings.forEach((r) => {
+    if (!r.designId) return;
+    const tags = tagsByDesignId.get(r.designId);
+    if (!tags || tags.length === 0) return;
+    tags.forEach((tag) => {
+      const prev = byTag.get(tag) || { label: tag, value: 0 };
+      prev.value += r.amount;
+      byTag.set(tag, prev);
+    });
+  });
+
+  const items = Array.from(byTag.values())
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 20);
+  renderBarChart(document.getElementById("tags-chart"), items);
 }
 
 // "Substrate" is the specific material within a category — e.g. within
@@ -700,7 +733,12 @@ function applyRange(range) {
 
 async function init() {
   allRecords = await getAllTransactions();
-  const [lastSyncAt, yearlySummaries] = await Promise.all([getMeta("lastSyncAt"), getAllYearlySummaries()]);
+  const [lastSyncAt, yearlySummaries, designTags] = await Promise.all([
+    getMeta("lastSyncAt"),
+    getAllYearlySummaries(),
+    getAllDesignTags()
+  ]);
+  tagsByDesignId = new Map(designTags.map((d) => [d.designId, d.tags || []]));
   renderPayoutsTable(yearlySummaries);
 
   document.getElementById("sync-status").textContent = lastSyncAt

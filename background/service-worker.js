@@ -1,4 +1,4 @@
-import { putTransactions, setMeta, getMeta, countTransactions, putYearlySummaries } from "../lib/db.js";
+import { putTransactions, setMeta, getMeta, countTransactions, putYearlySummaries, putDesignTags } from "../lib/db.js";
 
 // The content script runs at spoonflower.com's origin and can't reach the
 // extension's own IndexedDB directly, so it relays parsed rows here for
@@ -26,6 +26,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
       try {
         await putYearlySummaries(message.records || []);
+        sendResponse({ ok: true });
+      } catch (err) {
+        sendResponse({ ok: false, error: String(err) });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === "SYNC_DESIGN_TAGS") {
+    (async () => {
+      try {
+        await putDesignTags(message.records || []);
         sendResponse({ ok: true });
       } catch (err) {
         sendResponse({ ok: false, error: String(err) });

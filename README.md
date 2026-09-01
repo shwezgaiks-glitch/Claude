@@ -40,14 +40,21 @@ back in one response.
     directly checkable against a bank statement (see note below on why
     "Earned" and "Paid Out" don't — and shouldn't — match for the same
     calendar year).
+  - **Sync Design Tags** — fetches your design library
+    (`/designs?...&look=batch&...`) page by page (72 designs per page,
+    stops once a page comes back empty) and pulls each design's tags,
+    status, and full name from the batch-edit markup. Powers the
+    dashboard's "Revenue by tag" breakdown — not a transaction source, just
+    metadata joined against designId.
 - **Background service worker** (`background/`) — receives parsed records
   from the content script and writes them to IndexedDB (the content script
   itself can't reach the extension's storage directly, since it runs at
   spoonflower.com's origin).
 - **Dashboard** (`dashboard/`) — a full analytics view: revenue trend, top
-  designs, revenue by category (wallpaper/fabric), a searchable/sortable
-  transaction table, CSV export, and a verification table comparing synced
-  totals against Spoonflower's official per-year figures.
+  designs (linked to their Spoonflower product pages), revenue by category
+  and by substrate (wallpaper/fabric types), revenue by tag, repeat buyers
+  (with a per-buyer design breakdown), returns, official payout figures, a
+  searchable/sortable transaction table, and CSV export.
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)
@@ -89,6 +96,7 @@ back in one response.
 
 This first version covers: revenue trend, best/worst sellers, product-type
 (wallpaper/fabric) breakdown, returns, repeat buyers, official payout
-figures, and CSV export. Natural next additions: custom tagging/grouping of
-designs into your own collections, and a design-performance view (if
+figures, revenue by tag, and CSV export. Natural next additions: a
+top-vs-bottom design name/keyword comparison, per-design revenue over
+lifetime (spike-and-decay vs. evergreen), and a design-performance view (if
 Spoonflower ever exposes view/favorite counts alongside sales).
