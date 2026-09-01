@@ -92,7 +92,7 @@ function designUrl(designId, productType) {
 function renderStatTiles(container, stats) {
   container.replaceChildren();
   const tiles = [
-    { label: "Total revenue", value: formatCompactCurrency(stats.totalRevenue) },
+    { label: "Total revenue", value: formatCompactCurrency(stats.totalRevenue), delta: stats.revenueDelta },
     { label: "Sales tracked", value: stats.salesCount.toLocaleString() },
     { label: "Avg per sale", value: formatCurrency(stats.avgPerSale) },
     { label: "This month", value: formatCompactCurrency(stats.monthRevenue) }
@@ -107,6 +107,18 @@ function renderStatTiles(container, stats) {
     value.className = "value";
     value.textContent = t.value;
     div.append(label, value);
+    if (t.delta) {
+      const deltaEl = document.createElement("div");
+      if (t.delta.isNew) {
+        deltaEl.className = "delta delta-up";
+        deltaEl.textContent = `▲ New ${t.delta.periodLabel}`;
+      } else {
+        const up = t.delta.pct >= 0;
+        deltaEl.className = "delta " + (up ? "delta-up" : "delta-down");
+        deltaEl.textContent = `${up ? "▲" : "▼"} ${Math.abs(t.delta.pct).toFixed(1)}% ${t.delta.periodLabel}`;
+      }
+      div.appendChild(deltaEl);
+    }
     container.appendChild(div);
   });
 }
@@ -340,10 +352,75 @@ function getRangeBounds(range) {
   return null;
 }
 
-function filterByRange(records, range) {
-  const bounds = getRangeBounds(range);
+function filterByBounds(records, bounds) {
   if (!bounds) return records;
   return records.filter((r) => r.date && r.date >= bounds.from && r.date <= bounds.to);
+}
+
+function filterByRange(records, range) {
+  return filterByBounds(records, getRangeBounds(range));
+}
+
+// The comparison period for each filter — calendar-aligned for ytd/month
+// (comparable seasons, not an arbitrary trailing window) and a contiguous
+// immediately-preceding window for the rolling ranges. "all" has no
+// meaningful prior period to compare against.
+function getPreviousRangeBounds(range) {
+  const now = new Date();
+  if (range === "90d") {
+    const to = new Date(now);
+    to.setDate(to.getDate() - 91);
+    const from = new Date(now);
+    from.setDate(from.getDate() - 180);
+    return { from: isoDate(from), to: isoDate(to) };
+  }
+  if (range === "12m") {
+    const to = new Date(now);
+    to.setFullYear(to.getFullYear() - 1);
+    to.setDate(to.getDate() - 1);
+    const from = new Date(now);
+    from.setFullYear(from.getFullYear() - 2);
+    return { from: isoDate(from), to: isoDate(to) };
+  }
+  if (range === "ytd") {
+    const prevYear = now.getFullYear() - 1;
+    return { from: `${prevYear}-01-01`, to: `${prevYear}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` };
+  }
+  if (range === "month") {
+    const prevMonthLastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+    const prevMonthFirstDay = new Date(prevMonthLastDay.getFullYear(), prevMonthLastDay.getMonth(), 1);
+    const cutoffDay = Math.min(now.getDate(), prevMonthLastDay.getDate());
+    const cutoff = new Date(prevMonthFirstDay.getFullYear(), prevMonthFirstDay.getMonth(), cutoffDay);
+    return { from: isoDate(prevMonthFirstDay), to: isoDate(cutoff) };
+  }
+  return null;
+}
+
+function previousPeriodLabel(range) {
+  switch (range) {
+    case "90d":
+      return "vs prior 90 days";
+    case "12m":
+      return "vs prior 12 months";
+    case "ytd":
+      return "vs same period last year";
+    case "month":
+      return "vs same days last month";
+    default:
+      return null;
+  }
+}
+
+function buildRevenueDelta(currentRevenue, range) {
+  const bounds = getPreviousRangeBounds(range);
+  if (!bounds) return null;
+  const previousRevenue = filterByBounds(allRecords, bounds)
+    .filter(isEarningRecord)
+    .reduce((s, r) => s + r.amount, 0);
+  if (previousRevenue === 0 && currentRevenue === 0) return null;
+  const periodLabel = previousPeriodLabel(range);
+  if (previousRevenue === 0) return { pct: null, isNew: true, periodLabel };
+  return { pct: ((currentRevenue - previousRevenue) / Math.abs(previousRevenue)) * 100, isNew: false, periodLabel };
 }
 
 function monthLabel(key) {
@@ -392,7 +469,8 @@ function renderAll() {
     totalRevenue,
     salesCount: earnings.length,
     avgPerSale: earnings.length ? totalRevenue / earnings.length : 0,
-    monthRevenue
+    monthRevenue,
+    revenueDelta: buildRevenueDelta(totalRevenue, currentRange)
   });
 
   const useMonthly = currentRange === "all" || currentRange === "12m" || currentRange === "ytd";

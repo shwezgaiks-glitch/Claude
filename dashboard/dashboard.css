@@ -13,6 +13,7 @@
   --series-2: #eb6834; /* orange - fabric */
   --series-3: #1baf7a; /* aqua - other */
   --critical: #d03b3b;
+  --good: #006300; /* delta up / success text */
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -29,6 +30,7 @@
     --series-1-wash: rgba(57, 135, 229, 0.14);
     --series-2: #d95926;
     --series-3: #199e70;
+    --good: #0ca30c;
     /* --critical intentionally not overridden: status colors are fixed
        across themes, not swapped like categorical hues (dataviz skill,
        palette.md "Status palette (fixed — never themed)"). */
@@ -156,6 +158,18 @@ main {
   font-size: 24px;
   font-weight: 600;
   margin-top: 4px;
+}
+
+.stat-tile .delta {
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+.stat-tile .delta-up {
+  color: var(--good);
+}
+.stat-tile .delta-down {
+  color: var(--critical);
 }
 
 .chart-card {
