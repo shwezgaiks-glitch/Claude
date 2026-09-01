@@ -311,9 +311,10 @@ function renderBarChart(container, items) {
     fill.tabIndex = 0;
     track.appendChild(fill);
 
+    const valueText = item.valueLabel || formatCurrency(item.value);
     const value = document.createElement("div");
     value.className = "bar-value";
-    value.textContent = formatCurrency(item.value);
+    value.textContent = valueText;
 
     const tooltip = document.createElement("div");
     tooltip.className = "tooltip";
@@ -322,7 +323,7 @@ function renderBarChart(container, items) {
     ttLabel.textContent = item.label;
     const ttValue = document.createElement("div");
     ttValue.className = "tt-value";
-    ttValue.textContent = formatCurrency(item.value);
+    ttValue.textContent = valueText;
     tooltip.append(ttLabel, ttValue);
 
     row.append(label, track, value, tooltip);
@@ -350,6 +351,7 @@ let currentRange = "all";
 let currentSort = { key: "date", dir: "desc" };
 let currentSearch = "";
 let tagsByDesignId = new Map(); // designId -> string[] tags, from Sync Design Tags
+let designRollups = new Map(); // designId -> all-time sale/return rollup, from buildDesignRollups
 
 function isEarningRecord(r) {
   return r.type === "sale" || r.type === "fill_a_yard";
@@ -539,14 +541,12 @@ function renderAll() {
 
   renderTagRevenue(earnings);
   renderRepeatBuyers(earnings);
-  renderReturns(scoped);
+  renderReturnsCard(scoped);
   renderTable(scoped);
 }
 
 // ---------- Design-level rollups (all-time, not scoped to the date filter) ----------
-// Design Aging and Return Rate both need the same per-design shape (sale
-// history + return count), so it's built once here and shared, rather than
-// scanning allRecords twice.
+// Powers the merged Returns card's by-design return-rate table.
 
 function buildDesignRollups(records) {
   const byDesign = new Map();
@@ -558,20 +558,12 @@ function buildDesignRollups(records) {
       designId: r.designId,
       name: r.designName || r.designId,
       saleCount: 0,
-      saleRevenue: 0,
       returnCount: 0,
-      firstSaleDate: null,
-      lastSaleDate: null,
       productTypeRevenue: new Map()
     };
 
     if (r.type === "sale" || r.type === "fill_a_yard") {
       prev.saleCount += 1;
-      prev.saleRevenue += r.amount;
-      if (r.date) {
-        if (!prev.firstSaleDate || r.date < prev.firstSaleDate) prev.firstSaleDate = r.date;
-        if (!prev.lastSaleDate || r.date > prev.lastSaleDate) prev.lastSaleDate = r.date;
-      }
       const slug = classifyProductType(r.productRaw, r.productName, r.category);
       prev.productTypeRevenue.set(slug, (prev.productTypeRevenue.get(slug) || 0) + r.amount);
     } else if (r.type === "return") {
@@ -581,80 +573,6 @@ function buildDesignRollups(records) {
     byDesign.set(r.designId, prev);
   });
   return byDesign;
-}
-
-function renderDesignAging(rollups) {
-  const card = document.getElementById("design-aging-card");
-  const todayIso = isoDate(new Date());
-  const items = Array.from(rollups.values())
-    .filter((d) => d.lastSaleDate)
-    .map((d) => ({
-      ...d,
-      daysSince: Math.floor((new Date(todayIso) - new Date(d.lastSaleDate)) / 86400000)
-    }))
-    .sort((a, b) => b.daysSince - a.daysSince)
-    .slice(0, 30);
-
-  if (items.length === 0) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
-
-  const tbody = document.getElementById("design-aging-table-body");
-  tbody.replaceChildren();
-  items.forEach((d) => {
-    const tr = document.createElement("tr");
-    const designTd = document.createElement("td");
-    designTd.appendChild(buildDesignLinkEl(d.designId, d.name, d.productTypeRevenue));
-    const lastSoldTd = document.createElement("td");
-    lastSoldTd.textContent = d.lastSaleDate;
-    const daysTd = document.createElement("td");
-    daysTd.className = "num";
-    daysTd.textContent = d.daysSince.toLocaleString();
-    const revenueTd = document.createElement("td");
-    revenueTd.className = "num";
-    revenueTd.textContent = formatCurrency(d.saleRevenue);
-    const countTd = document.createElement("td");
-    countTd.className = "num";
-    countTd.textContent = d.saleCount.toLocaleString();
-    tr.append(designTd, lastSoldTd, daysTd, revenueTd, countTd);
-    tbody.appendChild(tr);
-  });
-}
-
-function renderReturnRateByDesign(rollups) {
-  const card = document.getElementById("return-rate-card");
-  const items = Array.from(rollups.values())
-    .filter((d) => d.returnCount > 0 && d.saleCount > 0)
-    .map((d) => ({ ...d, rate: (d.returnCount / d.saleCount) * 100 }))
-    .sort((a, b) => b.rate - a.rate)
-    .slice(0, 25);
-
-  if (items.length === 0) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
-
-  const tbody = document.getElementById("return-rate-table-body");
-  tbody.replaceChildren();
-  items.forEach((d) => {
-    const tr = document.createElement("tr");
-    const designTd = document.createElement("td");
-    designTd.appendChild(buildDesignLinkEl(d.designId, d.name, d.productTypeRevenue));
-    const salesTd = document.createElement("td");
-    salesTd.className = "num";
-    salesTd.textContent = d.saleCount.toLocaleString();
-    const returnsTd = document.createElement("td");
-    returnsTd.className = "num";
-    returnsTd.textContent = d.returnCount.toLocaleString();
-    const rateTd = document.createElement("td");
-    rateTd.className = "num";
-    rateTd.textContent = `${d.rate.toFixed(1)}%`;
-    tr.append(designTd, salesTd, returnsTd, rateTd);
-    tbody.appendChild(tr);
-  });
 }
 
 // Whether designs make most of their money in a quick spike right after
@@ -739,8 +657,13 @@ function renderNewDesignPerformance(records) {
 // Attributes each earning's revenue to every tag its design carries (a
 // design with 5 tags counts its full revenue toward all 5, not 1/5th each —
 // this answers "which tags show up on my best sellers", not "how is
-// revenue partitioned"), so the ranked total intentionally exceeds overall
-// revenue. Ranked single-measure bar chart like Top designs/substrates.
+// revenue partitioned"). That alone tends to mislead: a single design with
+// many tags puts all of them at the identical top value, crowding out tags
+// that genuinely recur across the catalog. Sorting by how many *different*
+// designs carry a tag first (then revenue as a tiebreaker) fixes that —
+// tags proven across multiple designs surface first — and the design count
+// is shown alongside the dollar figure so a run of identical values reads
+// as "one design's tag list" rather than looking like a data error.
 function renderTagRevenue(earnings) {
   const card = document.getElementById("tags-card");
   if (tagsByDesignId.size === 0) {
@@ -755,15 +678,21 @@ function renderTagRevenue(earnings) {
     const tags = tagsByDesignId.get(r.designId);
     if (!tags || tags.length === 0) return;
     tags.forEach((tag) => {
-      const prev = byTag.get(tag) || { label: tag, value: 0 };
+      const prev = byTag.get(tag) || { label: tag, value: 0, designIds: new Set() };
       prev.value += r.amount;
+      prev.designIds.add(r.designId);
       byTag.set(tag, prev);
     });
   });
 
   const items = Array.from(byTag.values())
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 20);
+    .sort((a, b) => b.designIds.size - a.designIds.size || b.value - a.value)
+    .slice(0, 20)
+    .map((t) => ({
+      label: t.label,
+      value: t.value,
+      valueLabel: `${formatCurrency(t.value)} · ${t.designIds.size} design${t.designIds.size === 1 ? "" : "s"}`
+    }));
   renderBarChart(document.getElementById("tags-chart"), items);
 }
 
@@ -889,18 +818,54 @@ function renderRepeatBuyers(earnings) {
   });
 }
 
-function renderReturns(scopedRecords) {
+// Merged card: the date-scoped summary line (how many/how much this period)
+// plus the all-time, unscoped by-design return-rate table (needs a design's
+// full sale history to mean anything, so it isn't filtered by the date range).
+function renderReturnsCard(scopedRecords) {
   const returns = scopedRecords.filter((r) => r.type === "return");
+  const rateItems = Array.from(designRollups.values())
+    .filter((d) => d.returnCount > 0 && d.saleCount > 0)
+    .map((d) => ({ ...d, rate: (d.returnCount / d.saleCount) * 100 }))
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, 25);
+
   const card = document.getElementById("returns-card");
-  if (returns.length === 0) {
+  if (returns.length === 0 && rateItems.length === 0) {
     card.hidden = true;
     return;
   }
   card.hidden = false;
 
-  const total = returns.reduce((s, r) => s + r.amount, 0); // amounts are negative
-  document.getElementById("returns-total").textContent =
-    `${formatCurrency(Math.abs(total))} across ${returns.length} order${returns.length === 1 ? "" : "s"} — excluded from revenue above.`;
+  const totalEl = document.getElementById("returns-total");
+  if (returns.length === 0) {
+    totalEl.textContent = "No returns in this range.";
+  } else {
+    const total = returns.reduce((s, r) => s + r.amount, 0); // amounts are negative
+    totalEl.textContent =
+      `${formatCurrency(Math.abs(total))} across ${returns.length} order${returns.length === 1 ? "" : "s"} — excluded from revenue above.`;
+  }
+
+  const rateTable = document.getElementById("return-rate-table");
+  rateTable.hidden = rateItems.length === 0;
+  document.getElementById("return-rate-caption").hidden = rateItems.length === 0;
+  const tbody = document.getElementById("return-rate-table-body");
+  tbody.replaceChildren();
+  rateItems.forEach((d) => {
+    const tr = document.createElement("tr");
+    const designTd = document.createElement("td");
+    designTd.appendChild(buildDesignLinkEl(d.designId, d.name, d.productTypeRevenue));
+    const salesTd = document.createElement("td");
+    salesTd.className = "num";
+    salesTd.textContent = d.saleCount.toLocaleString();
+    const returnsTd = document.createElement("td");
+    returnsTd.className = "num";
+    returnsTd.textContent = d.returnCount.toLocaleString();
+    const rateTd = document.createElement("td");
+    rateTd.className = "num";
+    rateTd.textContent = `${d.rate.toFixed(1)}%`;
+    tr.append(designTd, salesTd, returnsTd, rateTd);
+    tbody.appendChild(tr);
+  });
 }
 
 function renderTable(scopedRecords) {
@@ -1036,9 +1001,7 @@ async function init() {
   tagsByDesignId = new Map(designTags.map((d) => [d.designId, d.tags || []]));
   renderPayoutsTable(yearlySummaries);
 
-  const designRollups = buildDesignRollups(allRecords);
-  renderDesignAging(designRollups);
-  renderReturnRateByDesign(designRollups);
+  designRollups = buildDesignRollups(allRecords);
   renderNewDesignPerformance(allRecords);
 
   document.getElementById("sync-status").textContent = lastSyncAt

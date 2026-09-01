@@ -33,30 +33,28 @@
 
       <section class="stat-tiles" id="stat-tiles"></section>
 
-      <div class="two-col">
-        <section class="chart-card" id="payouts-card" hidden>
-          <h2>Payouts</h2>
-          <p class="muted">
-            What Spoonflower says it paid out per year, from the Yearly Spoondollar Statements page — run
-            <strong>Verify Totals</strong> on the Spoondollar history page to refresh this. Compare against your bank
-            deposits.
-          </p>
-          <table id="payouts-table">
-            <thead>
-              <tr>
-                <th>Year</th>
-                <th class="num">Spoonflower says paid out</th>
-              </tr>
-            </thead>
-            <tbody id="payouts-table-body"></tbody>
-          </table>
-        </section>
+      <section class="chart-card">
+        <h2>Revenue over time</h2>
+        <div id="trend-chart" class="chart-container"></div>
+      </section>
 
-        <section class="chart-card">
-          <h2>Revenue over time</h2>
-          <div id="trend-chart" class="chart-container"></div>
-        </section>
-      </div>
+      <section class="chart-card" id="payouts-card" hidden>
+        <h2>Payouts</h2>
+        <p class="muted">
+          What Spoonflower says it paid out per year, from the Yearly Spoondollar Statements page — run
+          <strong>Verify Totals</strong> on the Spoondollar history page to refresh this. Compare against your bank
+          deposits.
+        </p>
+        <table id="payouts-table">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th class="num">Spoonflower says paid out</th>
+            </tr>
+          </thead>
+          <tbody id="payouts-table-body"></tbody>
+        </table>
+      </section>
 
       <div class="two-col">
         <section class="chart-card">
@@ -83,50 +81,14 @@
       <section class="chart-card" id="tags-card" hidden>
         <h2>Revenue by tag</h2>
         <p class="muted">
-          Top tags across your designs, run <strong>Sync Design Tags</strong> on the Spoondollar history page to
-          refresh this. A design's revenue counts toward every tag it carries, so this total runs higher than your
-          overall revenue — it's meant to compare tags against each other, not to sum to a whole.
+          Run <strong>Sync Design Tags</strong> on the Spoondollar history page to refresh this. A design's revenue
+          counts toward every tag it carries, so tags on a single big-selling design can otherwise dominate the list
+          without telling you much — sorted here by how many different designs share a tag first, then by revenue,
+          so tags proven across your catalog surface above one design's own tag list. Revenue totals still run
+          higher than your overall revenue, since one design's sale counts toward each of its tags.
         </p>
         <div id="tags-chart" class="chart-container"></div>
       </section>
-
-      <div class="two-col">
-        <section class="chart-card" id="design-aging-card" hidden>
-          <h2>Design aging</h2>
-          <p class="muted">All-time, not affected by the date filter above. Stalest first.</p>
-          <table id="design-aging-table">
-            <thead>
-              <tr>
-                <th>Design</th>
-                <th>Last sold</th>
-                <th class="num">Days since</th>
-                <th class="num">Lifetime revenue</th>
-                <th class="num">Sales</th>
-              </tr>
-            </thead>
-            <tbody id="design-aging-table-body"></tbody>
-          </table>
-        </section>
-
-        <section class="chart-card" id="return-rate-card" hidden>
-          <h2>Return rate by design</h2>
-          <p class="muted">
-            All-time. Returns as a % of that design's sales (line-item basis — a multi-item order canceled in full
-            counts as one return per item). Only designs with at least one return are shown.
-          </p>
-          <table id="return-rate-table">
-            <thead>
-              <tr>
-                <th>Design</th>
-                <th class="num">Sales</th>
-                <th class="num">Returns</th>
-                <th class="num">Return rate</th>
-              </tr>
-            </thead>
-            <tbody id="return-rate-table-body"></tbody>
-          </table>
-        </section>
-      </div>
 
       <section class="chart-card" id="new-design-performance-card" hidden>
         <h2>New design performance</h2>
@@ -153,6 +115,22 @@
       <section class="chart-card" id="returns-card" hidden>
         <h2>Returns</h2>
         <p id="returns-total" class="muted"></p>
+        <p id="return-rate-caption" class="muted">
+          By design, all-time (not affected by the date filter above): returns as a % of that design's sales
+          (line-item basis — a multi-item order canceled in full counts as one return per item). Only designs with
+          at least one return are shown, worst first.
+        </p>
+        <table id="return-rate-table">
+          <thead>
+            <tr>
+              <th>Design</th>
+              <th class="num">Sales</th>
+              <th class="num">Returns</th>
+              <th class="num">Return rate</th>
+            </tr>
+          </thead>
+          <tbody id="return-rate-table-body"></tbody>
+        </table>
       </section>
 
       <section class="chart-card">

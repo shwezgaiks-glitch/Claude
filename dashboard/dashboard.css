@@ -265,11 +265,12 @@ a.bar-label:focus-visible {
   background: var(--series-3);
 }
 .bar-row .bar-value {
-  width: 70px;
+  min-width: 70px;
   text-align: right;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .table-header {
