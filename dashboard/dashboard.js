@@ -41,6 +41,52 @@ function niceCeil(n) {
   return niceResidual * magnitude;
 }
 
+// ---------- Design page links ----------
+// Spoonflower's own design-page URL depends on which product the design was
+// sold as (wallpaper vs. fabric vs. a specific home-decor item each have
+// their own path), and a design can be sold as more than one — the
+// classification is guessed per-sale from the product text, and the caller
+// picks whichever product type earned the design the most before building
+// the link, so it points at the product page most relevant to the sales
+// being shown.
+
+function classifyProductType(productRaw, productName, category) {
+  const text = `${productRaw || ""} ${productName || ""}`.toLowerCase();
+  if (text.includes("tea towel")) return "teatowel";
+  if (text.includes("curtain")) return "curtain";
+  if (text.includes("napkin")) return "napkins";
+  if (text.includes("pillow sham")) return "pillowsham";
+  if (text.includes("placemat")) return "placemat";
+  if (text.includes("table runner")) return "tablerunner";
+  if (text.includes("sheet set")) return "sheetset";
+  if (text.includes("tablecloth")) return "tablecloth";
+  if (text.includes("throw blanket")) return "throwblanket";
+  if (text.includes("throw pillow")) return "throwpillow";
+  if (text.includes("duvet") || text.includes("bedding")) return "duvetcover";
+  if (text.includes("wallpaper") || category === "Wallpaper") return "wallpaper";
+  return "fabric"; // default: swatches, fat quarters, yards, and anything else cut from yardage
+}
+
+function designUrl(designId, productType) {
+  const base = "https://www.spoonflower.com/en/artists";
+  const paths = {
+    wallpaper: `wallpaper/${designId}`,
+    fabric: `fabric/${designId}`,
+    teatowel: `home-decor/dining/tea-towel/${designId}`,
+    curtain: `home-decor/living-decor/curtains/${designId}`,
+    napkins: `home-decor/dining/napkins/${designId}`,
+    pillowsham: `home-decor/bedding/pillow-sham/${designId}`,
+    placemat: `home-decor/dining/placemats/${designId}`,
+    tablerunner: `home-decor/dining/table-runner/${designId}`,
+    sheetset: `home-decor/bedding/sheet-set/${designId}`,
+    tablecloth: `home-decor/dining/tablecloth/${designId}`,
+    throwblanket: `home-decor/living-decor/throw-blanket/${designId}`,
+    throwpillow: `home-decor/living-decor/throw-pillow/${designId}`,
+    duvetcover: `home-decor/bedding/duvet-cover/${designId}`
+  };
+  return `${base}/${paths[productType] || paths.fabric}`;
+}
+
 // ---------- Stat tiles ----------
 
 function renderStatTiles(container, stats) {
@@ -211,8 +257,13 @@ function renderBarChart(container, items) {
     row.className = "bar-row";
     row.style.position = "relative";
 
-    const label = document.createElement("div");
+    const label = document.createElement(item.href ? "a" : "div");
     label.className = "bar-label";
+    if (item.href) {
+      label.href = item.href;
+      label.target = "_blank";
+      label.rel = "noopener noreferrer";
+    }
     label.textContent = item.label; // scraped design/category name — textContent only
     label.title = item.label;
 
@@ -346,13 +397,24 @@ function renderAll() {
   const byDesign = new Map();
   earnings.forEach((r) => {
     if (!r.designId) return;
-    const prev = byDesign.get(r.designId) || { label: r.designName || r.designId, value: 0 };
+    const prev = byDesign.get(r.designId) || {
+      designId: r.designId,
+      name: r.designName || r.designId,
+      value: 0,
+      productTypeRevenue: new Map()
+    };
     prev.value += r.amount;
+    const slug = classifyProductType(r.productRaw, r.productName, r.category);
+    prev.productTypeRevenue.set(slug, (prev.productTypeRevenue.get(slug) || 0) + r.amount);
     byDesign.set(r.designId, prev);
   });
   const topDesigns = Array.from(byDesign.values())
     .sort((a, b) => b.value - a.value)
-    .slice(0, 10);
+    .slice(0, 10)
+    .map((d) => {
+      const bestSlug = Array.from(d.productTypeRevenue.entries()).sort((a, b) => b[1] - a[1])[0][0];
+      return { label: `${d.name} (#${d.designId})`, value: d.value, href: designUrl(d.designId, bestSlug) };
+    });
   renderBarChart(document.getElementById("top-designs-chart"), topDesigns);
 
   const byCategory = new Map();
@@ -366,9 +428,31 @@ function renderAll() {
   const categories = Array.from(byCategory.values()).sort((a, b) => b.value - a.value);
   renderBarChart(document.getElementById("category-chart"), categories);
 
+  renderSubstrateBreakdown(document.getElementById("wallpaper-types-chart"), earnings, "Wallpaper");
+  renderSubstrateBreakdown(document.getElementById("fabric-types-chart"), earnings, "Fabric");
+
   renderRepeatBuyers(earnings);
   renderReturns(scoped);
   renderTable(scoped);
+}
+
+// "Substrate" is the specific material within a category — e.g. within
+// Wallpaper: Traditional, Peel and Stick, Grasscloth; within Fabric: Petal
+// Signature Cotton, Cotton Poplin, Velvet. Ranked single-measure bar chart,
+// same treatment as Top designs (one hue — these aren't distinct series
+// being compared, just categories ranked by one number).
+function renderSubstrateBreakdown(container, earnings, category) {
+  const bySubstrate = new Map();
+  earnings
+    .filter((r) => r.category === category)
+    .forEach((r) => {
+      const key = r.substrate || "Unspecified";
+      const prev = bySubstrate.get(key) || { label: key, value: 0 };
+      prev.value += r.amount;
+      bySubstrate.set(key, prev);
+    });
+  const items = Array.from(bySubstrate.values()).sort((a, b) => b.value - a.value);
+  renderBarChart(container, items);
 }
 
 function renderRepeatBuyers(earnings) {
@@ -376,11 +460,18 @@ function renderRepeatBuyers(earnings) {
   const byBuyer = new Map();
   earnings.forEach((r) => {
     if (!r.buyer) return; // guest checkouts are anonymized to null and can't be tracked as repeats
-    const prev = byBuyer.get(r.buyer) || { buyer: r.buyer, count: 0, total: 0, first: r.date, last: r.date };
+    const prev = byBuyer.get(r.buyer) || { buyer: r.buyer, count: 0, total: 0, first: r.date, last: r.date, designs: new Map() };
     prev.count += 1;
     prev.total += r.amount;
     if (r.date && (!prev.first || r.date < prev.first)) prev.first = r.date;
     if (r.date && (!prev.last || r.date > prev.last)) prev.last = r.date;
+
+    const designKey = r.designName || r.productName || "Unknown";
+    const designPrev = prev.designs.get(designKey) || { design: designKey, count: 0, total: 0 };
+    designPrev.count += 1;
+    designPrev.total += r.amount;
+    prev.designs.set(designKey, designPrev);
+
     byBuyer.set(r.buyer, prev);
   });
 
@@ -397,10 +488,20 @@ function renderRepeatBuyers(earnings) {
 
   const tbody = document.getElementById("repeat-buyers-table-body");
   tbody.replaceChildren();
-  repeats.forEach((b) => {
+  repeats.forEach((b, i) => {
+    const detailId = `buyer-detail-${i}`;
+
     const tr = document.createElement("tr");
     const buyerTd = document.createElement("td");
-    buyerTd.textContent = b.buyer;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "row-toggle";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.dataset.target = detailId;
+    toggle.dataset.buyer = b.buyer;
+    toggle.textContent = "▸ " + b.buyer;
+    buyerTd.appendChild(toggle);
+
     const countTd = document.createElement("td");
     countTd.className = "num";
     countTd.textContent = b.count.toLocaleString();
@@ -413,6 +514,30 @@ function renderRepeatBuyers(earnings) {
     lastTd.textContent = b.last || "";
     tr.append(buyerTd, countTd, totalTd, firstTd, lastTd);
     tbody.appendChild(tr);
+
+    const detailTr = document.createElement("tr");
+    detailTr.id = detailId;
+    detailTr.className = "buyer-detail-row";
+    detailTr.hidden = true;
+    const detailTd = document.createElement("td");
+    detailTd.colSpan = 5;
+    const designList = document.createElement("ul");
+    designList.className = "buyer-design-list";
+    Array.from(b.designs.values())
+      .sort((a, c) => c.total - a.total)
+      .forEach((d) => {
+        const li = document.createElement("li");
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = d.design; // scraped design name — textContent only
+        const valueSpan = document.createElement("span");
+        valueSpan.className = "num";
+        valueSpan.textContent = `${d.count}× — ${formatCurrency(d.total)}`;
+        li.append(nameSpan, valueSpan);
+        designList.appendChild(li);
+      });
+    detailTd.appendChild(designList);
+    detailTr.appendChild(detailTd);
+    tbody.appendChild(detailTr);
   });
 }
 
@@ -561,6 +686,19 @@ async function init() {
 
   document.querySelectorAll(".filter-btn").forEach((btn) => {
     btn.addEventListener("click", () => applyRange(btn.dataset.range));
+  });
+
+  // Delegated once here rather than re-bound per row, since
+  // renderRepeatBuyers replaces the tbody's contents on every re-render.
+  document.getElementById("repeat-buyers-table").addEventListener("click", (e) => {
+    const btn = e.target.closest(".row-toggle");
+    if (!btn) return;
+    const target = document.getElementById(btn.dataset.target);
+    if (!target) return;
+    const expanded = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", String(!expanded));
+    target.hidden = expanded;
+    btn.textContent = (expanded ? "▸ " : "▾ ") + btn.dataset.buyer;
   });
 
   document.getElementById("table-search").addEventListener("input", (e) => {
