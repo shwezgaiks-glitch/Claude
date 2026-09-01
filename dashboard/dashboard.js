@@ -87,6 +87,30 @@ function designUrl(designId, productType) {
   return `${base}/${paths[productType] || paths.fabric}`;
 }
 
+function bestProductType(productTypeRevenueMap) {
+  const sorted = Array.from(productTypeRevenueMap.entries()).sort((a, b) => b[1] - a[1]);
+  return sorted.length ? sorted[0][0] : "fabric";
+}
+
+// Builds the design-name element used in tables/lists: a link to the
+// design's product page (picking whichever product type earned it the
+// most, since one design can sell as more than one) when a designId and
+// per-product-type revenue breakdown are available, otherwise plain text.
+function buildDesignLinkEl(designId, name, productTypeRevenueMap) {
+  if (!designId || !productTypeRevenueMap || productTypeRevenueMap.size === 0) {
+    const span = document.createElement("span");
+    span.textContent = name; // scraped design name — textContent only
+    return span;
+  }
+  const a = document.createElement("a");
+  a.className = "design-link";
+  a.href = designUrl(designId, bestProductType(productTypeRevenueMap));
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.textContent = name; // scraped design name — textContent only
+  return a;
+}
+
 // ---------- Stat tiles ----------
 
 function renderStatTiles(container, stats) {
@@ -519,6 +543,120 @@ function renderAll() {
   renderTable(scoped);
 }
 
+// ---------- Design-level rollups (all-time, not scoped to the date filter) ----------
+// Design Aging and Return Rate both need the same per-design shape (sale
+// history + return count), so it's built once here and shared, rather than
+// scanning allRecords twice.
+
+function buildDesignRollups(records) {
+  const byDesign = new Map();
+  records.forEach((r) => {
+    if (!r.designId) return;
+    if (r.type !== "sale" && r.type !== "fill_a_yard" && r.type !== "return") return;
+
+    const prev = byDesign.get(r.designId) || {
+      designId: r.designId,
+      name: r.designName || r.designId,
+      saleCount: 0,
+      saleRevenue: 0,
+      returnCount: 0,
+      firstSaleDate: null,
+      lastSaleDate: null,
+      productTypeRevenue: new Map()
+    };
+
+    if (r.type === "sale" || r.type === "fill_a_yard") {
+      prev.saleCount += 1;
+      prev.saleRevenue += r.amount;
+      if (r.date) {
+        if (!prev.firstSaleDate || r.date < prev.firstSaleDate) prev.firstSaleDate = r.date;
+        if (!prev.lastSaleDate || r.date > prev.lastSaleDate) prev.lastSaleDate = r.date;
+      }
+      const slug = classifyProductType(r.productRaw, r.productName, r.category);
+      prev.productTypeRevenue.set(slug, (prev.productTypeRevenue.get(slug) || 0) + r.amount);
+    } else if (r.type === "return") {
+      prev.returnCount += 1;
+    }
+
+    byDesign.set(r.designId, prev);
+  });
+  return byDesign;
+}
+
+function renderDesignAging(rollups) {
+  const card = document.getElementById("design-aging-card");
+  const todayIso = isoDate(new Date());
+  const items = Array.from(rollups.values())
+    .filter((d) => d.lastSaleDate)
+    .map((d) => ({
+      ...d,
+      daysSince: Math.floor((new Date(todayIso) - new Date(d.lastSaleDate)) / 86400000)
+    }))
+    .sort((a, b) => b.daysSince - a.daysSince)
+    .slice(0, 30);
+
+  if (items.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const tbody = document.getElementById("design-aging-table-body");
+  tbody.replaceChildren();
+  items.forEach((d) => {
+    const tr = document.createElement("tr");
+    const designTd = document.createElement("td");
+    designTd.appendChild(buildDesignLinkEl(d.designId, d.name, d.productTypeRevenue));
+    const lastSoldTd = document.createElement("td");
+    lastSoldTd.textContent = d.lastSaleDate;
+    const daysTd = document.createElement("td");
+    daysTd.className = "num";
+    daysTd.textContent = d.daysSince.toLocaleString();
+    const revenueTd = document.createElement("td");
+    revenueTd.className = "num";
+    revenueTd.textContent = formatCurrency(d.saleRevenue);
+    const countTd = document.createElement("td");
+    countTd.className = "num";
+    countTd.textContent = d.saleCount.toLocaleString();
+    tr.append(designTd, lastSoldTd, daysTd, revenueTd, countTd);
+    tbody.appendChild(tr);
+  });
+}
+
+function renderReturnRateByDesign(rollups) {
+  const card = document.getElementById("return-rate-card");
+  const items = Array.from(rollups.values())
+    .filter((d) => d.returnCount > 0 && d.saleCount > 0)
+    .map((d) => ({ ...d, rate: (d.returnCount / d.saleCount) * 100 }))
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, 25);
+
+  if (items.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const tbody = document.getElementById("return-rate-table-body");
+  tbody.replaceChildren();
+  items.forEach((d) => {
+    const tr = document.createElement("tr");
+    const designTd = document.createElement("td");
+    designTd.appendChild(buildDesignLinkEl(d.designId, d.name, d.productTypeRevenue));
+    const salesTd = document.createElement("td");
+    salesTd.className = "num";
+    salesTd.textContent = d.saleCount.toLocaleString();
+    const returnsTd = document.createElement("td");
+    returnsTd.className = "num";
+    returnsTd.textContent = d.returnCount.toLocaleString();
+    const rateTd = document.createElement("td");
+    rateTd.className = "num";
+    rateTd.textContent = `${d.rate.toFixed(1)}%`;
+    tr.append(designTd, salesTd, returnsTd, rateTd);
+    tbody.appendChild(tr);
+  });
+}
+
 // Attributes each earning's revenue to every tag its design carries (a
 // design with 5 tags counts its full revenue toward all 5, not 1/5th each —
 // this answers "which tags show up on my best sellers", not "how is
@@ -818,6 +956,10 @@ async function init() {
   ]);
   tagsByDesignId = new Map(designTags.map((d) => [d.designId, d.tags || []]));
   renderPayoutsTable(yearlySummaries);
+
+  const designRollups = buildDesignRollups(allRecords);
+  renderDesignAging(designRollups);
+  renderReturnRateByDesign(designRollups);
 
   document.getElementById("sync-status").textContent = lastSyncAt
     ? `Last synced ${new Date(lastSyncAt).toLocaleString()} · ${allRecords.length.toLocaleString()} transactions`

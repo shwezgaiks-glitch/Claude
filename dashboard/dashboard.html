@@ -90,6 +90,44 @@
         <div id="tags-chart" class="chart-container"></div>
       </section>
 
+      <div class="two-col">
+        <section class="chart-card" id="design-aging-card" hidden>
+          <h2>Design aging</h2>
+          <p class="muted">All-time, not affected by the date filter above. Stalest first.</p>
+          <table id="design-aging-table">
+            <thead>
+              <tr>
+                <th>Design</th>
+                <th>Last sold</th>
+                <th class="num">Days since</th>
+                <th class="num">Lifetime revenue</th>
+                <th class="num">Sales</th>
+              </tr>
+            </thead>
+            <tbody id="design-aging-table-body"></tbody>
+          </table>
+        </section>
+
+        <section class="chart-card" id="return-rate-card" hidden>
+          <h2>Return rate by design</h2>
+          <p class="muted">
+            All-time. Returns as a % of that design's sales (line-item basis — a multi-item order canceled in full
+            counts as one return per item). Only designs with at least one return are shown.
+          </p>
+          <table id="return-rate-table">
+            <thead>
+              <tr>
+                <th>Design</th>
+                <th class="num">Sales</th>
+                <th class="num">Returns</th>
+                <th class="num">Return rate</th>
+              </tr>
+            </thead>
+            <tbody id="return-rate-table-body"></tbody>
+          </table>
+        </section>
+      </div>
+
       <section class="chart-card" id="repeat-buyers-card" hidden>
         <h2>Repeat buyers</h2>
         <table id="repeat-buyers-table">
