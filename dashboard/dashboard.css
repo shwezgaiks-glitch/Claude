@@ -374,11 +374,30 @@ main {
   gap: 10px;
   padding: 4px 0;
 }
+/* Only rows with a thumbnail grow — the category/substrate charts stay
+   as compact as they were. */
+.bar-row:has(.bar-thumb) {
+  padding: 6px 0;
+}
 .bar-row .bar-label {
   width: 38%;
   font-size: 12px;
   color: var(--text-secondary);
   text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Rows carrying a thumbnail lay out as flex so the image keeps its full
+   size and only the name truncates. Rows without one keep the plain
+   text-overflow treatment above. */
+.bar-row .bar-label--with-thumb {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  overflow: visible;
+}
+.bar-label-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -389,13 +408,13 @@ a.bar-label:focus-visible {
   text-decoration: underline;
 }
 .bar-thumb {
-  width: 20px;
-  height: 20px;
-  border-radius: 3px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 5px;
   object-fit: cover;
-  margin-right: 6px;
-  vertical-align: -5px;
   background: var(--gridline);
+  border: 1px solid var(--border);
 }
 
 .bar-row .bar-track {
@@ -673,10 +692,15 @@ a.bar-label:focus-visible {
 .family-member-name {
   display: inline-flex;
   align-items: center;
+  gap: 9px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.family .buyer-design-list li {
+  align-items: center;
+  min-height: 44px;
 }
 
 .customer-row-tags {

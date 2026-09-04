@@ -373,9 +373,16 @@ function renderBarChart(container, items) {
       label.rel = "noopener noreferrer";
     }
     if (item.thumbnailUrl) {
+      label.classList.add("bar-label--with-thumb");
       label.appendChild(buildThumbnailEl(item.thumbnailUrl, item.label, "bar-thumb"));
     }
-    label.appendChild(document.createTextNode(item.label)); // scraped design/category name — text node only
+    // The name goes in its own element rather than a bare text node so it can
+    // be the flex item that truncates — the thumbnail beside it must keep its
+    // full size rather than share in the ellipsis.
+    const labelText = document.createElement("span");
+    labelText.className = "bar-label-text";
+    labelText.textContent = item.label; // scraped design/category name — textContent only
+    label.appendChild(labelText);
     label.title = item.label;
 
     const track = document.createElement("div");
