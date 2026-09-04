@@ -2097,6 +2097,51 @@ async function importBuyerNotes(file) {
 
 // ---------- Wiring ----------
 
+// Marks the section you're currently looking at in the jump-nav, so it
+// reads as "you are here" rather than just a row of links. Sections are
+// tall and several are on screen at once, so rather than trusting
+// isIntersecting, this picks whichever visible section starts highest on
+// the page — the one you're actually reading.
+function setUpSectionSpy() {
+  const links = new Map(
+    Array.from(document.querySelectorAll(".section-nav a")).map((a) => [a.getAttribute("href").slice(1), a])
+  );
+  const sections = Array.from(document.querySelectorAll(".page-section"));
+  if (sections.length === 0) return;
+
+  // Computed from positions rather than from which sections intersect the
+  // viewport: sections are tall enough that several are on screen at once,
+  // and "first intersecting" then sticks on the previous section's tail
+  // while you're already reading the next one. The active section is simply
+  // the last one whose top has passed under the sticky nav.
+  const NAV_OFFSET = 72;
+  const update = () => {
+    let current = sections[0];
+    sections.forEach((s) => {
+      if (s.getBoundingClientRect().top <= NAV_OFFSET) current = s;
+    });
+    // The final section is often shorter than the viewport, so its top can
+    // never reach the nav — without this it stays unreachable no matter how
+    // far you scroll. At the bottom of the page it's what you're looking at.
+    const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    if (atBottom) current = sections[sections.length - 1];
+    links.forEach((a, id) => a.classList.toggle("is-active", current.id === id));
+  };
+
+  let queued = false;
+  const onScroll = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      update();
+    });
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll, { passive: true });
+  update();
+}
+
 function applyRange(range) {
   currentRange = range;
   document.querySelectorAll(".filter-btn").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.range === range)));
@@ -2270,6 +2315,7 @@ async function init() {
   });
 
   document.getElementById("export-csv").addEventListener("click", exportCsv);
+  setUpSectionSpy();
 
   applyRange("all");
 }

@@ -157,30 +157,83 @@ main {
   border-bottom: 1px solid var(--border);
 }
 .section-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  padding: 5px 10px;
+  padding: 5px 11px;
   border-radius: 20px;
   color: var(--text-secondary);
   text-decoration: none;
+  border: 1px solid transparent;
 }
 .section-nav a:hover,
 .section-nav a:focus-visible {
   color: var(--series-1);
   background: var(--series-1-wash);
 }
+.nav-num {
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+/* Whichever section is currently in view, so the nav doubles as a
+   you-are-here indicator rather than just a set of jump links. */
+.section-nav a.is-active {
+  color: var(--series-1);
+  border-color: var(--series-1);
+  font-weight: 600;
+}
+.section-nav a.is-active .nav-num {
+  color: var(--series-1);
+}
 
 .page-section {
   /* Clears the sticky nav so a jumped-to heading isn't hidden under it. */
-  scroll-margin-top: 60px;
-  margin-bottom: 40px;
+  scroll-margin-top: 68px;
+  margin-bottom: 56px;
+}
+/* A rule above every section but the first: the strongest, cheapest signal
+   that one group of cards has ended and another has begun. */
+.page-section + .page-section {
+  border-top: 1px solid var(--border);
+  padding-top: 32px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.section-num {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--series-1);
+  color: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .section-heading {
-  font-size: 18px;
+  font-size: 22px;
   margin: 0;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.section-question {
+  margin: 1px 0 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--series-1);
 }
 .section-blurb {
-  margin: 4px 0 16px;
+  margin: 0 0 18px;
   max-width: 68ch; /* keeps the explanation to a readable measure */
   line-height: 1.55;
 }
@@ -693,6 +746,12 @@ a.bar-label:focus-visible {
   color: var(--text-muted);
   background: transparent;
   border-color: var(--border);
+}
+
+.export-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .muted-cell {

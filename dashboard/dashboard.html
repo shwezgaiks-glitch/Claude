@@ -13,7 +13,6 @@
       </div>
       <div class="header-actions">
         <button id="reset-data" class="btn-danger">Reset Data</button>
-        <button id="export-csv" class="btn-secondary">Export CSV</button>
       </div>
     </header>
 
@@ -33,16 +32,22 @@
       </div>
 
       <nav class="section-nav" aria-label="Jump to section">
-        <a href="#sec-performance">Performance</a>
-        <a href="#sec-designs">Designs</a>
-        <a href="#sec-keywords">Keywords</a>
-        <a href="#sec-products">Products &amp; pricing</a>
-        <a href="#sec-buyers">Buyers</a>
-        <a href="#sec-data">Data</a>
+        <a href="#sec-performance"><span class="nav-num">1</span>Performance</a>
+        <a href="#sec-designs"><span class="nav-num">2</span>Designs</a>
+        <a href="#sec-keywords"><span class="nav-num">3</span>Keywords</a>
+        <a href="#sec-products"><span class="nav-num">4</span>Products &amp; pricing</a>
+        <a href="#sec-buyers"><span class="nav-num">5</span>Buyers</a>
+        <a href="#sec-data"><span class="nav-num">6</span>Raw data</a>
       </nav>
 
       <section class="page-section" id="sec-performance">
-        <h2 class="section-heading">Performance</h2>
+        <header class="section-head">
+          <span class="section-num" aria-hidden="true">1</span>
+          <div>
+            <h2 class="section-heading">Performance</h2>
+            <p class="section-question">“how am I doing?”</p>
+          </div>
+        </header>
         <p class="section-blurb muted">Your headline numbers, the trend behind them, and what Spoonflower actually paid out. Start here to see whether a period is up or down — the sections below are for working out why.</p>
         <section class="stat-tiles" id="stat-tiles"></section>
         <section class="chart-card">
@@ -89,7 +94,13 @@
       </section>
 
       <section class="page-section" id="sec-designs">
-        <h2 class="section-heading">Designs</h2>
+        <header class="section-head">
+          <span class="section-num" aria-hidden="true">2</span>
+          <div>
+            <h2 class="section-heading">Designs</h2>
+            <p class="section-question">“what sells, what should I make next?”</p>
+          </div>
+        </header>
         <p class="section-blurb muted">Which individual designs earn, which whole themes earn once colourways are grouped together, and how much of a design's money arrives in its first few months. Click any design's dollar value for its full history.</p>
         <section class="chart-card">
           <h3>Top designs by revenue</h3>
@@ -114,7 +125,13 @@
       </section>
 
       <section class="page-section" id="sec-keywords">
-        <h2 class="section-heading">Keywords</h2>
+        <header class="section-head">
+          <span class="section-num" aria-hidden="true">3</span>
+          <div>
+            <h2 class="section-heading">Keywords</h2>
+            <p class="section-question">“how should I tag and describe things?”</p>
+          </div>
+        </header>
         <p class="section-blurb muted">Which words on your designs are actually doing the selling, and whether each one is climbing or fading. Use this to decide how to tag the next design — and to spot designs you never tagged at all.</p>
         <section class="chart-card" id="keywords-card" hidden>
           <p class="muted">
@@ -134,7 +151,13 @@
       </section>
 
       <section class="page-section" id="sec-products">
-        <h2 class="section-heading">Products &amp; pricing</h2>
+        <header class="section-head">
+          <span class="section-num" aria-hidden="true">4</span>
+          <div>
+            <h2 class="section-heading">Products &amp; pricing</h2>
+            <p class="section-question">“which formats and price points work?”</p>
+          </div>
+        </header>
         <p class="section-blurb muted">Which categories and materials sell, at what average price point, and whether the swatches people order turn into full-size purchases later. Useful for deciding what to offer rather than what to draw.</p>
         <section class="chart-card">
           <h3>Products</h3>
@@ -182,7 +205,13 @@
       </section>
 
       <section class="page-section" id="sec-buyers">
-        <h2 class="section-heading">Buyers</h2>
+        <header class="section-head">
+          <span class="section-num" aria-hidden="true">5</span>
+          <div>
+            <h2 class="section-heading">Buyers</h2>
+            <p class="section-question">“who buys, and who comes back?”</p>
+          </div>
+        </header>
         <p class="section-blurb muted">Every signed-in buyer, who returns, and what share of revenue each type of customer accounts for. Add a buyer type, links and private notes to anyone worth remembering — all stored only in this browser.</p>
         <section class="chart-card" id="customers-card" hidden>
           <div class="table-header">
@@ -191,9 +220,6 @@
               <button type="button" id="customers-repeat-toggle" class="filter-btn" aria-pressed="false">
               Repeat buyers only
               </button>
-              <button type="button" id="buyer-notes-export" class="filter-btn">Export tags/notes</button>
-              <button type="button" id="buyer-notes-import" class="filter-btn">Import</button>
-              <input id="buyer-notes-file" type="file" accept="application/json,.json" hidden />
               <input id="customer-search" type="search" placeholder="Search by name, tag, or note…" />
             </div>
           </div>
@@ -222,7 +248,13 @@
       </section>
 
       <section class="page-section" id="sec-data">
-        <h2 class="section-heading">Data</h2>
+        <header class="section-head">
+          <span class="section-num" aria-hidden="true">6</span>
+          <div>
+            <h2 class="section-heading">Raw data</h2>
+            <p class="section-question">“what sits underneath all of this?”</p>
+          </div>
+        </header>
         <p class="section-blurb muted">Every synced row, searchable and sortable. Payouts and returns are hidden by default so the table reads as sales — switch them on to see the full ledger, with each row labelled by type.</p>
         <section class="chart-card">
           <div class="table-header">
@@ -255,6 +287,20 @@
             </table>
           </div>
           <p id="table-count" class="muted"></p>
+        </section>
+        <section class="chart-card">
+          <h3>Exports</h3>
+          <p class="muted">
+            Transactions can always be re-synced from Spoonflower, so their export is just a convenience. Buyer tags
+            and notes cannot — they're typed by you and live only in this browser, so that export is the only backup
+            of them that exists.
+          </p>
+          <div class="export-row">
+            <button type="button" id="export-csv" class="btn-secondary">Export transactions (CSV)</button>
+            <button type="button" id="buyer-notes-export" class="btn-secondary">Export buyer tags &amp; notes (JSON)</button>
+            <button type="button" id="buyer-notes-import" class="btn-secondary">Import buyer tags &amp; notes</button>
+            <input id="buyer-notes-file" type="file" accept="application/json,.json" hidden />
+          </div>
         </section>
       </section>
 

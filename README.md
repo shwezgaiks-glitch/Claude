@@ -52,10 +52,15 @@ back in one response.
   from the content script and writes them to IndexedDB (the content script
   itself can't reach the extension's storage directly, since it runs at
   spoonflower.com's origin).
-- **Dashboard** (`dashboard/`) — organised into six sections, with a sticky
-  jump-nav across the top: **Performance** (headline tiles, revenue trend,
-  payouts, returns), **Designs**, **Keywords**, **Products & pricing**,
-  **Buyers**, and **Data**. Cards whose numbers deliberately ignore the
+- **Dashboard** (`dashboard/`) — organised into six numbered sections, each
+  headed by the question it answers, with a sticky jump-nav that tracks
+  which one you're currently reading: **1 Performance** ("how am I
+  doing?" — headline tiles, revenue trend, payouts, returns), **2
+  Designs** ("what sells, what should I make next?"), **3 Keywords**
+  ("how should I tag and describe things?"), **4 Products & pricing**
+  ("which formats and price points work?"), **5 Buyers**, and **6 Raw
+  data** (the full transaction table plus the CSV/JSON exports). Cards
+  whose numbers deliberately ignore the
   date filter — because they need a design's whole history to mean
   anything — carry an "all-time" badge, so neighbouring cards disagreeing
   about scope reads as intentional rather than as a bug. In full: revenue trend with a
