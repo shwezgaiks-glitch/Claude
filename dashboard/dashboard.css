@@ -419,6 +419,91 @@ a.bar-label:focus-visible {
   text-decoration: underline;
 }
 
+.card-headline {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+
+.spark-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.spark-cell {
+  min-width: 0;
+}
+.spark-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.spark-word {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spark-value {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.spark-plot svg.sparkline {
+  height: 48px;
+  cursor: crosshair;
+}
+
+.family {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--gridline);
+}
+.family:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.family-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.family-title {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.family-title:hover,
+.family-title:focus-visible {
+  color: var(--series-1);
+}
+.family-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.family-member-name {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .customer-row-tags {
   font-size: 11px;
   color: var(--text-muted);
@@ -639,5 +724,8 @@ svg.chart-svg {
   }
   .two-col {
     grid-template-columns: 1fr;
+  }
+  .spark-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

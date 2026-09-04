@@ -55,7 +55,8 @@ back in one response.
 - **Dashboard** (`dashboard/`) — a full analytics view: revenue trend with a
   period-over-period delta, top designs (linked to their Spoonflower
   product pages), revenue by category and by substrate (wallpaper/fabric
-  types, each with a $/unit average), revenue by tag, new design
+  types, each with a $/unit average), revenue by tag, keyword trends,
+  design families, swatch conversion, new design
   performance (how much of a design's revenue arrives in its first
   30/60/90 days), returns (a date-scoped summary alongside an all-time
   return-rate-by-design table), official payout figures, a
@@ -75,6 +76,18 @@ back in one response.
   a headline showing how much of your signed-in revenue they account for.
   (Guest checkouts are anonymized by Spoonflower, so they can't appear
   here at all.)
+
+  Three views build on the synced tags rather than the sales data alone:
+  **Keyword trends** plots each top keyword's monthly revenue as its own
+  small panel — deliberately not one chart with a line per keyword, which
+  knots into unreadable spaghetti; all panels share one vertical scale so
+  their heights compare honestly. **Design families** groups designs by
+  how much of their tag vocabulary they share, which tends to recover the
+  sets you published together (one motif in several colorways) without
+  looking at the images, and ranks those groups by combined revenue.
+  **Swatch conversion** tracks how often a buyer who ordered a swatch came
+  back later for a full-size order of the same design — signed-in buyers
+  only, since guest swatches can't be tied to a later guest order.
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)
@@ -133,10 +146,10 @@ share), returns (with an all-time return-rate-by-design breakdown), a
 Customers card with user-editable tags/notes and a repeat-buyer filter, a
 per-design detail view (lifetime trend, buyer type and product mix,
 with the design's thumbnail), official payout figures, click-to-drill
-chart filtering, refund/guest-checkout stat notes, and CSV export. A
-natural next addition: a top-vs-bottom design name/keyword comparison
-(what words show up on your best sellers vs. your weakest ones), and an
-export/import path for the buyer tags and notes, which currently exist
-only in this browser with no backup — a design-performance view showing
-view/favorite counts isn't possible unless Spoonflower exposes those
-alongside sales somewhere we haven't found yet.
+chart filtering, refund/guest-checkout stat notes, keyword trend small
+multiples, tag-derived design families, swatch conversion, and CSV
+export. A natural next addition: an export/import path for the buyer tags
+and notes, which currently exist only in this browser with no backup — a
+design-performance view showing view/favorite counts isn't possible
+unless Spoonflower exposes those alongside sales somewhere we haven't
+found yet.

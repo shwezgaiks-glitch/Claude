@@ -94,6 +94,46 @@
         <ul id="untagged-list" class="buyer-design-list" hidden></ul>
       </section>
 
+      <section class="chart-card" id="keyword-trends-card" hidden>
+        <h2>Keyword trends</h2>
+        <p id="keyword-trends-caption" class="muted"></p>
+        <div id="keyword-trends-grid" class="spark-grid"></div>
+      </section>
+
+      <section class="chart-card" id="design-families-card" hidden>
+        <h2>Design families</h2>
+        <p class="muted">
+          Designs grouped by how much of their tag vocabulary they share — which tends to recover the sets you
+          published together (one motif in several colorways, or a coordinate collection) without looking at the
+          images. Ranked by the group's combined revenue, so you can see which whole themes earn, not just which
+          individual designs do. Click a group's name to filter the transaction table to it.
+        </p>
+        <div id="design-families-list"></div>
+      </section>
+
+      <section class="chart-card" id="swatch-conversion-card" hidden>
+        <h2>Swatch conversion</h2>
+        <p id="swatch-conversion-summary" class="card-headline"></p>
+        <p class="muted">
+          How often ordering a swatch led the same buyer to come back later for a full-size order of that same
+          design — all-time, not affected by the date filter above, since a sample can take months to convert.
+          Only signed-in buyers can be followed this way: Spoonflower anonymizes guest checkouts, so a guest's
+          swatch and their later order can't be tied to the same person. A full-size order placed the same day as
+          the swatch isn't counted, since that's almost always one combined order rather than a sample doing its job.
+        </p>
+        <table id="swatch-conversion-table">
+          <thead>
+            <tr>
+              <th>Design</th>
+              <th class="num">Swatches</th>
+              <th class="num">Converted</th>
+              <th class="num">Rate</th>
+            </tr>
+          </thead>
+          <tbody id="swatch-conversion-table-body"></tbody>
+        </table>
+      </section>
+
       <section class="chart-card" id="new-design-performance-card" hidden>
         <h2>New design performance</h2>
         <p class="muted" id="new-design-performance-caption"></p>

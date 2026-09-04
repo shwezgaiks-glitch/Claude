@@ -637,6 +637,8 @@ function renderAll() {
   renderSubstrateBreakdown(document.getElementById("fabric-types-chart"), earnings, "Fabric");
 
   renderTagRevenue(earnings);
+  renderKeywordTrends(earnings);
+  renderTagGroups(earnings);
   renderCustomers(earnings);
   renderReturnsCard(scoped);
   renderTable(scoped);
@@ -670,6 +672,115 @@ function buildDesignRollups(records) {
     byDesign.set(r.designId, prev);
   });
   return byDesign;
+}
+
+// ---------- Swatch conversion (all-time, not scoped to the date filter) ----------
+// A swatch is the cheap sample a buyer orders to check colour and hand
+// before committing to yardage or a roll. The question worth answering is
+// how often that sample turns into a real order for the same design — and,
+// per design, whether people who sample it come back.
+//
+// Necessarily limited to signed-in buyers: Spoonflower anonymizes guest
+// checkouts to a null buyer, so a guest's swatch and their later full order
+// can't be tied to the same person. Dates are day-granular, so a full-size
+// order placed the same day as the swatch isn't counted — that's almost
+// always one combined order rather than a sample that did its job.
+
+function isSwatchRecord(r) {
+  return /swatch/i.test(`${r.productRaw || ""} ${r.productName || ""}`);
+}
+
+function buildSwatchConversion(records) {
+  const earnings = records.filter(isEarningRecord).filter((r) => r.buyer && r.designId && r.date);
+
+  // earliest swatch date per buyer+design, and all full-size purchase dates
+  const swatchFirstDate = new Map(); // "buyer\u0000designId" -> earliest swatch date
+  const fullDates = new Map(); // same key -> array of non-swatch purchase dates
+  earnings.forEach((r) => {
+    const key = `${r.buyer}\u0000${r.designId}`;
+    if (isSwatchRecord(r)) {
+      const prev = swatchFirstDate.get(key);
+      if (!prev || r.date < prev) swatchFirstDate.set(key, r.date);
+    } else {
+      if (!fullDates.has(key)) fullDates.set(key, []);
+      fullDates.get(key).push(r.date);
+    }
+  });
+
+  // Design name and per-product-type revenue (the latter decides which
+  // product page to link to) in one pass, rather than rescanning every
+  // earning once per design.
+  const byDesign = new Map();
+  earnings.forEach((r) => {
+    const prev = byDesign.get(r.designId) || {
+      designId: r.designId,
+      name: r.designName || r.designId,
+      swatches: 0,
+      converted: 0,
+      productTypeRevenue: new Map()
+    };
+    const slug = classifyProductType(r.productRaw, r.productName, r.category);
+    prev.productTypeRevenue.set(slug, (prev.productTypeRevenue.get(slug) || 0) + r.amount);
+    byDesign.set(r.designId, prev);
+  });
+
+  let swatchPairs = 0;
+  let convertedPairs = 0;
+  swatchFirstDate.forEach((swatchDate, key) => {
+    const designId = key.slice(key.indexOf("\u0000") + 1);
+    const converted = (fullDates.get(key) || []).some((d) => d > swatchDate);
+    swatchPairs++;
+    if (converted) convertedPairs++;
+
+    const design = byDesign.get(designId);
+    design.swatches++;
+    if (converted) design.converted++;
+  });
+
+  return {
+    swatchPairs,
+    convertedPairs,
+    rate: swatchPairs > 0 ? (convertedPairs / swatchPairs) * 100 : 0,
+    // byDesign is seeded from every design with sales (so names and links
+    // are on hand); only those that actually had a trackable swatch belong
+    // in the table — the rest would divide by zero.
+    byDesign: Array.from(byDesign.values())
+      .filter((d) => d.swatches > 0)
+      .sort((a, b) => b.swatches - a.swatches || b.converted - a.converted)
+  };
+}
+
+function renderSwatchConversion(records) {
+  const card = document.getElementById("swatch-conversion-card");
+  const result = buildSwatchConversion(records);
+  if (result.swatchPairs === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  document.getElementById("swatch-conversion-summary").textContent =
+    `${result.convertedPairs} of ${result.swatchPairs} swatch${result.swatchPairs === 1 ? "" : "es"} ` +
+    `led to a later full-size order of the same design — ${result.rate.toFixed(0)}%.`;
+
+  const tbody = document.getElementById("swatch-conversion-table-body");
+  tbody.replaceChildren();
+  result.byDesign.slice(0, 25).forEach((d) => {
+    const tr = document.createElement("tr");
+    const designTd = document.createElement("td");
+    designTd.appendChild(buildDesignLinkEl(d.designId, d.name, d.productTypeRevenue));
+    const swatchTd = document.createElement("td");
+    swatchTd.className = "num";
+    swatchTd.textContent = d.swatches.toLocaleString();
+    const convertedTd = document.createElement("td");
+    convertedTd.className = "num";
+    convertedTd.textContent = d.converted.toLocaleString();
+    const rateTd = document.createElement("td");
+    rateTd.className = "num";
+    rateTd.textContent = `${((d.converted / d.swatches) * 100).toFixed(0)}%`;
+    tr.append(designTd, swatchTd, convertedTd, rateTd);
+    tbody.appendChild(tr);
+  });
 }
 
 // ---------- Design detail modal (all-time, not scoped to the date filter) ----------
@@ -968,6 +1079,301 @@ function renderUntaggedDesigns(items) {
     value.textContent = formatCurrency(d.value);
     li.appendChild(value);
     list.appendChild(li);
+  });
+}
+
+// ---------- Keyword trends (small multiples) ----------
+// Deliberately not one chart with a line per keyword: a dozen overlapping
+// series in a shared frame is unreadable (and the top keywords all sit
+// within a narrow band, so the lines knot together). One small panel per
+// keyword, all sharing the same x-domain AND the same y-max, keeps the
+// panels honestly comparable — a keyword whose line stays low really is
+// smaller, rather than being rescaled to look busy.
+
+function buildKeywordTrends(earnings, limit) {
+  const months = Array.from(new Set(earnings.map((r) => (r.date || "").slice(0, 7)).filter(Boolean))).sort();
+  if (months.length === 0) return { months: [], words: [] };
+  const monthIndex = new Map(months.map((m, i) => [m, i]));
+
+  const wordsCache = new Map();
+  const byWord = new Map();
+  earnings.forEach((r) => {
+    if (!r.designId || !r.date) return;
+    let words = wordsCache.get(r.designId);
+    if (!words) {
+      words = wordsForDesign(r.designId);
+      wordsCache.set(r.designId, words);
+    }
+    const idx = monthIndex.get(r.date.slice(0, 7));
+    if (idx === undefined) return;
+    words.forEach((word) => {
+      let entry = byWord.get(word);
+      if (!entry) {
+        entry = { word, total: 0, designIds: new Set(), series: new Array(months.length).fill(0) };
+        byWord.set(word, entry);
+      }
+      entry.total += r.amount;
+      entry.designIds.add(r.designId);
+      entry.series[idx] += r.amount;
+    });
+  });
+
+  // Same ordering as Revenue by tag (breadth across the catalogue first,
+  // then revenue) so the two cards show the same keywords in the same
+  // order rather than two differently-ranked lists of the same thing.
+  const words = Array.from(byWord.values())
+    .sort((a, b) => b.designIds.size - a.designIds.size || b.total - a.total)
+    .slice(0, limit);
+  return { months, words };
+}
+
+function renderSparkline(container, series, months, sharedMax, onHover) {
+  container.replaceChildren();
+  const width = 240;
+  const height = 48;
+  const pad = 3;
+  const innerW = width - pad * 2;
+  const innerH = height - pad * 2;
+  const xFor = (i) => pad + (series.length > 1 ? (i / (series.length - 1)) * innerW : innerW / 2);
+  const yFor = (v) => pad + innerH - (sharedMax > 0 ? (v / sharedMax) * innerH : 0);
+
+  const svg = svgEl("svg", { class: "chart-svg sparkline", viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: "none" });
+
+  let d = "";
+  series.forEach((v, i) => {
+    d += `${i === 0 ? "M" : "L"}${xFor(i).toFixed(2)},${yFor(v).toFixed(2)}`;
+  });
+  svg.appendChild(svgEl("path", { class: "chart-area", d: `${d}L${xFor(series.length - 1)},${pad + innerH}L${xFor(0)},${pad + innerH}Z` }));
+  // The panel is stretched horizontally to fill its cell (preserveAspectRatio
+  // is off), which would otherwise scale the stroke unevenly — thicker on
+  // horizontal runs than vertical ones. non-scaling-stroke keeps it a true 2px.
+  svg.appendChild(svgEl("path", { class: "chart-line", d, "vector-effect": "non-scaling-stroke" }));
+
+  const dot = svgEl("circle", { class: "chart-hover-dot", r: 3, cx: 0, cy: 0 });
+  dot.setAttribute("visibility", "hidden");
+  svg.appendChild(dot);
+
+  // Hover layer: nearest-point readout, same interaction the main trend
+  // chart offers, scaled down to a panel this size.
+  const overlay = svgEl("rect", { x: 0, y: 0, width, height, fill: "transparent" });
+  svg.appendChild(overlay);
+  svg.addEventListener("mousemove", (e) => {
+    const rect = svg.getBoundingClientRect();
+    const ratio = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0;
+    const i = Math.max(0, Math.min(series.length - 1, Math.round(ratio * (series.length - 1))));
+    dot.setAttribute("cx", xFor(i));
+    dot.setAttribute("cy", yFor(series[i]));
+    dot.setAttribute("visibility", "visible");
+    onHover(months[i], series[i]);
+  });
+  svg.addEventListener("mouseleave", () => {
+    dot.setAttribute("visibility", "hidden");
+    onHover(null, null);
+  });
+
+  container.appendChild(svg);
+}
+
+function renderKeywordTrends(earnings) {
+  const card = document.getElementById("keyword-trends-card");
+  if (tagsByDesignId.size === 0) {
+    card.hidden = true;
+    return;
+  }
+  const { months, words } = buildKeywordTrends(earnings, 12);
+  if (words.length === 0 || months.length < 2) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const sharedMax = niceCeil(Math.max(...words.flatMap((w) => w.series), 1));
+  document.getElementById("keyword-trends-caption").textContent =
+    `Monthly revenue per keyword, ${monthLabel(months[0])} to ${monthLabel(months[months.length - 1])}. ` +
+    `All panels share one vertical scale (0 to ${formatCompactCurrency(sharedMax)}), so their heights are directly comparable.`;
+
+  const grid = document.getElementById("keyword-trends-grid");
+  grid.replaceChildren();
+  words.forEach((w) => {
+    const cell = document.createElement("div");
+    cell.className = "spark-cell";
+
+    const head = document.createElement("div");
+    head.className = "spark-head";
+    const name = document.createElement("span");
+    name.className = "spark-word";
+    name.textContent = w.word; // scraped tag text — textContent only
+    const value = document.createElement("span");
+    value.className = "spark-value";
+    const totalText = formatCurrency(w.total);
+    value.textContent = totalText;
+    head.append(name, value);
+
+    const plot = document.createElement("div");
+    plot.className = "spark-plot";
+    renderSparkline(plot, w.series, months, sharedMax, (month, amount) => {
+      value.textContent = month ? `${monthLabel(month)} · ${formatCurrency(amount)}` : totalText;
+    });
+
+    cell.append(head, plot);
+    grid.appendChild(cell);
+  });
+}
+
+// ---------- Design families (grouped by shared tag words) ----------
+// Spoonflower sellers usually publish designs in sets — the same motif in
+// six colorways, or a coordinate collection — and those siblings end up
+// carrying nearly identical tags. Comparing each pair of designs by how
+// much of their tag vocabulary overlaps therefore recovers those sets
+// without needing to look at the images at all.
+
+// Fraction of the two designs' combined vocabulary that they share. Two
+// colorways of one motif overlap almost completely; two unrelated designs
+// that happen to share "floral" barely overlap at all.
+function tagOverlap(wordsA, wordsB) {
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  let shared = 0;
+  wordsA.forEach((w) => {
+    if (wordsB.has(w)) shared++;
+  });
+  return shared / (wordsA.size + wordsB.size - shared); // |A∩B| / |A∪B|
+}
+
+// Deliberately strict: at 0.5 a pair has to share half its combined tag
+// vocabulary, which is the difference between "same design, different
+// colorway" and "both happen to be florals". Lower values chain unrelated
+// designs together through common words.
+const TAG_GROUP_MIN_OVERLAP = 0.5;
+
+function buildTagGroups(earnings) {
+  const byDesign = new Map();
+  earnings.forEach((r) => {
+    if (!r.designId) return;
+    const prev = byDesign.get(r.designId) || {
+      designId: r.designId,
+      name: r.designName || r.designId,
+      value: 0,
+      productTypeRevenue: new Map()
+    };
+    prev.value += r.amount;
+    const slug = classifyProductType(r.productRaw, r.productName, r.category);
+    prev.productTypeRevenue.set(slug, (prev.productTypeRevenue.get(slug) || 0) + r.amount);
+    byDesign.set(r.designId, prev);
+  });
+
+  const designs = Array.from(byDesign.values())
+    .map((d) => ({ ...d, words: wordsForDesign(d.designId) }))
+    .filter((d) => d.words.size > 0);
+  if (designs.length < 2) return [];
+
+  // Union-find over "these two designs overlap enough", so a set of six
+  // colorways collapses into one group even when not every pair clears the
+  // threshold directly.
+  const parent = new Map(designs.map((d) => [d.designId, d.designId]));
+  const find = (x) => {
+    let root = x;
+    while (parent.get(root) !== root) root = parent.get(root);
+    while (parent.get(x) !== root) {
+      const next = parent.get(x);
+      parent.set(x, root);
+      x = next;
+    }
+    return root;
+  };
+  for (let i = 0; i < designs.length; i++) {
+    for (let j = i + 1; j < designs.length; j++) {
+      if (tagOverlap(designs[i].words, designs[j].words) < TAG_GROUP_MIN_OVERLAP) continue;
+      const rootA = find(designs[i].designId);
+      const rootB = find(designs[j].designId);
+      if (rootA !== rootB) parent.set(rootA, rootB);
+    }
+  }
+
+  const groups = new Map();
+  designs.forEach((d) => {
+    const root = find(d.designId);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(d);
+  });
+
+  return Array.from(groups.values())
+    .filter((members) => members.length >= 2)
+    .map((members) => {
+      // Label by the words most of the group carries rather than the strict
+      // intersection: union-find links transitively, so A and C can land in
+      // one group without sharing a single word directly.
+      const wordCounts = new Map();
+      members.forEach((m) => m.words.forEach((w) => wordCounts.set(w, (wordCounts.get(w) || 0) + 1)));
+      const sharedWords = Array.from(wordCounts.entries())
+        .filter(([, count]) => count >= Math.ceil(members.length / 2))
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 6)
+        .map(([word]) => word);
+      return {
+        sharedWords,
+        members: members.slice().sort((a, b) => b.value - a.value),
+        value: members.reduce((s, m) => s + m.value, 0),
+        designIds: new Set(members.map((m) => m.designId))
+      };
+    })
+    .sort((a, b) => b.value - a.value);
+}
+
+function renderTagGroups(earnings) {
+  const card = document.getElementById("design-families-card");
+  if (tagsByDesignId.size === 0) {
+    card.hidden = true;
+    return;
+  }
+  const groups = buildTagGroups(earnings).slice(0, 12);
+  if (groups.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const container = document.getElementById("design-families-list");
+  container.replaceChildren();
+  groups.forEach((group) => {
+    const section = document.createElement("div");
+    section.className = "family";
+
+    const header = document.createElement("div");
+    header.className = "family-header";
+
+    const title = document.createElement("button");
+    title.type = "button";
+    title.className = "family-title";
+    title.textContent = group.sharedWords.join(" · ") || "Untitled group";
+    title.title = "Filter the transaction table to this group";
+    title.addEventListener("click", () =>
+      applyDrillFilter({ label: `family "${group.sharedWords.slice(0, 3).join(" · ")}"`, designIds: group.designIds })
+    );
+
+    const meta = document.createElement("span");
+    meta.className = "family-meta";
+    meta.textContent = `${group.members.length} designs · ${formatCurrency(group.value)}`;
+
+    header.append(title, meta);
+
+    const list = document.createElement("ul");
+    list.className = "buyer-design-list";
+    group.members.forEach((m) => {
+      const li = document.createElement("li");
+      const nameWrap = document.createElement("span");
+      nameWrap.className = "family-member-name";
+      const thumbUrl = thumbnailsByDesignId.get(m.designId);
+      if (thumbUrl) nameWrap.appendChild(buildThumbnailEl(thumbUrl, m.name, "bar-thumb"));
+      nameWrap.appendChild(buildDesignLinkEl(m.designId, m.name, m.productTypeRevenue));
+      const value = document.createElement("span");
+      value.className = "num";
+      value.textContent = formatCurrency(m.value);
+      li.append(nameWrap, value);
+      list.appendChild(li);
+    });
+
+    section.append(header, list);
+    container.appendChild(section);
   });
 }
 
@@ -1440,6 +1846,7 @@ async function init() {
 
   designRollups = buildDesignRollups(allRecords);
   renderNewDesignPerformance(allRecords);
+  renderSwatchConversion(allRecords);
 
   document.getElementById("sync-status").textContent = lastSyncAt
     ? `Last synced ${new Date(lastSyncAt).toLocaleString()} · ${allRecords.length.toLocaleString()} transactions`
