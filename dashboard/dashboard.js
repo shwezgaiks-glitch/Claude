@@ -134,7 +134,46 @@ function buildThumbnailEl(url, altText, className) {
   img.addEventListener("error", () => {
     img.hidden = true;
   });
+  attachThumbnailPreview(img, url, altText);
   return img;
+}
+
+// Hover-to-enlarge, the way Spoonflower's own library behaves. The preview
+// is fixed-position rather than a scaled-up copy in place: thumbnails live
+// inside overflow:hidden containers (bar labels, family member rows) that
+// would clip anything grown in flow. Costs no extra request either — the
+// same URL serves every size, so the browser already has it cached from
+// rendering the small one.
+const THUMB_PREVIEW_SIZE = 240;
+
+function positionThumbPreview(preview, e) {
+  const gap = 16;
+  let x = e.clientX + gap;
+  let y = e.clientY + gap;
+  // Flip to the other side of the cursor rather than overflowing the
+  // viewport, then clamp, so a thumbnail near the right or bottom edge
+  // still shows its preview fully.
+  if (x + THUMB_PREVIEW_SIZE > window.innerWidth) x = e.clientX - THUMB_PREVIEW_SIZE - gap;
+  if (y + THUMB_PREVIEW_SIZE > window.innerHeight) y = e.clientY - THUMB_PREVIEW_SIZE - gap;
+  preview.style.left = `${Math.max(gap, x)}px`;
+  preview.style.top = `${Math.max(gap, y)}px`;
+}
+
+function attachThumbnailPreview(img, url, altText) {
+  const preview = document.getElementById("thumb-preview");
+  if (!preview) return;
+  const previewImg = preview.querySelector("img");
+
+  img.addEventListener("mouseenter", (e) => {
+    previewImg.src = url;
+    previewImg.alt = altText || "";
+    preview.hidden = false;
+    positionThumbPreview(preview, e);
+  });
+  img.addEventListener("mousemove", (e) => positionThumbPreview(preview, e));
+  img.addEventListener("mouseleave", () => {
+    preview.hidden = true;
+  });
 }
 
 // ---------- Stat tiles ----------

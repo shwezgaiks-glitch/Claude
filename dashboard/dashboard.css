@@ -419,6 +419,31 @@ a.bar-label:focus-visible {
   text-decoration: underline;
 }
 
+/* Sits above the design detail modal (z-index 100) so thumbnails inside it
+   preview too. pointer-events:none keeps the preview from stealing the
+   hover that spawned it, which would make it flicker. */
+#thumb-preview {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
+  line-height: 0;
+}
+#thumb-preview[hidden] {
+  display: none;
+}
+#thumb-preview img {
+  width: 240px;
+  height: 240px;
+  object-fit: cover;
+  border-radius: 5px;
+  display: block;
+}
+
 .card-headline {
   font-size: 15px;
   color: var(--text-primary);
