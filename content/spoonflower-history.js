@@ -165,7 +165,15 @@
     let allDesigns = [];
     try {
       for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
-        setStatus(panel, `Fetching design library page ${pageNum}…`);
+        // The total page count isn't known up front — the loop discovers
+        // the end by hitting an empty page — so progress is reported as a
+        // running tally rather than "page X of Y".
+        setStatus(
+          panel,
+          pageNum === 1
+            ? "Fetching design library page 1…"
+            : `Fetching design library page ${pageNum}… (${allDesigns.length} designs so far)`
+        );
         const designs = await fetchDesignLibraryPage(pageNum);
         if (designs.length === 0) break;
         allDesigns = allDesigns.concat(designs);
