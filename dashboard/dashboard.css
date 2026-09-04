@@ -41,6 +41,15 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 body {
   margin: 0;
   background: var(--page);
@@ -135,6 +144,59 @@ main {
   font-weight: 600;
 }
 
+.section-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 0;
+  margin-bottom: 12px;
+  background: var(--page);
+  border-bottom: 1px solid var(--border);
+}
+.section-nav a {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.section-nav a:hover,
+.section-nav a:focus-visible {
+  color: var(--series-1);
+  background: var(--series-1-wash);
+}
+
+.page-section {
+  /* Clears the sticky nav so a jumped-to heading isn't hidden under it. */
+  scroll-margin-top: 56px;
+  margin-bottom: 28px;
+}
+.section-heading {
+  font-size: 17px;
+  margin: 0;
+}
+.section-blurb {
+  margin: 2px 0 14px;
+}
+
+/* Flags a card whose numbers deliberately ignore the date filter, so
+   neighbouring cards disagreeing about scope reads as intentional. */
+.scope-badge {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 1px 7px;
+  margin: -6px 0 10px;
+  vertical-align: middle;
+}
+
 .stat-tiles {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -190,7 +252,7 @@ main {
   margin-bottom: 20px;
 }
 
-.chart-card h2 {
+.chart-card h3 {
   font-size: 14px;
   margin: 0 0 12px;
   font-weight: 600;
@@ -320,7 +382,7 @@ a.bar-label:focus-visible {
   gap: 12px;
   margin-bottom: 12px;
 }
-.table-header h2 {
+.table-header h3 {
   margin: 0;
 }
 .table-header-controls {

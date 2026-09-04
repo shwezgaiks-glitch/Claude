@@ -32,196 +32,225 @@
         <button type="button" class="filter-btn" data-range="30d">Last 30 days</button>
       </div>
 
-      <section class="stat-tiles" id="stat-tiles"></section>
+      <nav class="section-nav" aria-label="Jump to section">
+        <a href="#sec-performance">Performance</a>
+        <a href="#sec-designs">Designs</a>
+        <a href="#sec-keywords">Keywords</a>
+        <a href="#sec-products">Products &amp; pricing</a>
+        <a href="#sec-buyers">Buyers</a>
+        <a href="#sec-data">Data</a>
+      </nav>
 
-      <section class="chart-card">
-        <h2>Revenue over time</h2>
-        <div id="trend-chart" class="chart-container"></div>
+      <section class="page-section" id="sec-performance">
+        <h2 class="section-heading">Performance</h2>
+        <p class="section-blurb muted">How the shop is doing overall.</p>
+        <section class="stat-tiles" id="stat-tiles"></section>
+        <section class="chart-card">
+          <h3>Revenue over time</h3>
+          <div id="trend-chart" class="chart-container"></div>
+        </section>
+        <section class="chart-card" id="payouts-card" hidden>
+          <h3>Payouts</h3>
+          <p class="muted">
+            What Spoonflower says it paid out per year, from the Yearly Spoondollar Statements page — run
+            <strong>Verify Totals</strong> on the Spoondollar history page to refresh this. Compare against your bank
+            deposits.
+          </p>
+          <table id="payouts-table">
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th class="num">Spoonflower says paid out</th>
+              </tr>
+            </thead>
+            <tbody id="payouts-table-body"></tbody>
+          </table>
+        </section>
+        <section class="chart-card" id="returns-card" hidden>
+          <h3>Returns</h3>
+          <p id="returns-total" class="muted"></p>
+          <p id="return-rate-caption" class="muted">
+            By design, all-time (not affected by the date filter above): returns as a % of that design's sales
+            (line-item basis — a multi-item order canceled in full counts as one return per item). Only designs with
+            at least one return are shown, worst first.
+          </p>
+          <table id="return-rate-table">
+            <thead>
+              <tr>
+                <th>Design</th>
+                <th class="num">Sales</th>
+                <th class="num">Returns</th>
+                <th class="num">Return rate</th>
+              </tr>
+            </thead>
+            <tbody id="return-rate-table-body"></tbody>
+          </table>
+        </section>
       </section>
 
-      <section class="chart-card" id="payouts-card" hidden>
-        <h2>Payouts</h2>
-        <p class="muted">
-          What Spoonflower says it paid out per year, from the Yearly Spoondollar Statements page — run
-          <strong>Verify Totals</strong> on the Spoondollar history page to refresh this. Compare against your bank
-          deposits.
-        </p>
-        <table id="payouts-table">
-          <thead>
-            <tr>
-              <th>Year</th>
-              <th class="num">Spoonflower says paid out</th>
-            </tr>
-          </thead>
-          <tbody id="payouts-table-body"></tbody>
-        </table>
+      <section class="page-section" id="sec-designs">
+        <h2 class="section-heading">Designs</h2>
+        <p class="section-blurb muted">Which designs earn, and what to make next.</p>
+        <section class="chart-card">
+          <h3>Top designs by revenue</h3>
+          <div id="top-designs-chart" class="chart-container"></div>
+        </section>
+        <section class="chart-card" id="design-families-card" hidden>
+          <h3>Design families</h3>
+          <p class="muted">
+            Designs grouped by how much of their tag vocabulary they share — which tends to recover the sets you
+            published together (one motif in several colorways, or a coordinate collection) without looking at the
+            images. Ranked by the group's combined revenue, so you can see which whole themes earn, not just which
+            individual designs do. Click a group's name to filter the transaction table to it.
+          </p>
+          <div id="design-families-list"></div>
+        </section>
+        <section class="chart-card" id="new-design-performance-card" hidden>
+          <h3>New design performance</h3>
+          <span class="scope-badge">all-time</span>
+          <p class="muted" id="new-design-performance-caption"></p>
+          <div class="stat-tiles stat-tiles--3col" id="new-design-performance-tiles"></div>
+        </section>
       </section>
 
-      <section class="chart-card">
-        <h2>Top designs by revenue</h2>
-        <div id="top-designs-chart" class="chart-container"></div>
+      <section class="page-section" id="sec-keywords">
+        <h2 class="section-heading">Keywords</h2>
+        <p class="section-blurb muted">How your tags and descriptions are performing.</p>
+        <section class="chart-card" id="keywords-card" hidden>
+          <p class="muted">
+            Run <strong>Sync Design Tags</strong> on the Spoondollar history page to refresh this. Multi-word tags are
+            split into individual words (e.g. "vintage golf sport" counts toward "vintage", "golf", and "sport"
+            separately) so a design's own repeated keyword phrasing doesn't dominate the list without telling you
+            much — ordered here by how many different designs share a word first, then by revenue, so words proven
+            across your catalog surface above one design's own tag list. Totals run higher than your overall revenue,
+            since one design's sale counts toward each of its distinct words. Click a keyword to filter the
+            transaction table to the designs carrying it.
+          </p>
+          <p id="keywords-trend-caption" class="muted"></p>
+          <div id="keywords-grid" class="spark-grid"></div>
+          <button type="button" id="untagged-toggle" class="row-toggle" aria-expanded="false" hidden></button>
+          <ul id="untagged-list" class="buyer-design-list" hidden></ul>
+        </section>
       </section>
 
-      <section class="chart-card">
-        <h2>Products</h2>
-        <p class="muted">
-          Revenue by broad category, then by the specific material within each — substrate is a breakdown of
-          category, not a separate ranking. The $/unit figure beside each bar is that bucket's average price
-          point, which is what separates "sells often, cheaply" from "sells rarely, for a lot".
-        </p>
-        <h4>By category</h4>
-        <div id="category-chart" class="chart-container"></div>
-        <div class="two-col">
-          <div>
-            <h4>Wallpaper by type</h4>
-            <div id="wallpaper-types-chart" class="chart-container"></div>
+      <section class="page-section" id="sec-products">
+        <h2 class="section-heading">Products &amp; pricing</h2>
+        <p class="section-blurb muted">Which formats, materials and price points sell.</p>
+        <section class="chart-card">
+          <h3>Products</h3>
+          <p class="muted">
+            Revenue by broad category, then by the specific material within each — substrate is a breakdown of
+            category, not a separate ranking. The $/unit figure beside each bar is that bucket's average price
+            point, which is what separates "sells often, cheaply" from "sells rarely, for a lot".
+          </p>
+          <h4>By category</h4>
+          <div id="category-chart" class="chart-container"></div>
+          <div class="two-col">
+            <div>
+              <h4>Wallpaper by type</h4>
+              <div id="wallpaper-types-chart" class="chart-container"></div>
+            </div>
+            <div>
+              <h4>Fabric by type</h4>
+              <div id="fabric-types-chart" class="chart-container"></div>
+            </div>
           </div>
-          <div>
-            <h4>Fabric by type</h4>
-            <div id="fabric-types-chart" class="chart-container"></div>
-          </div>
-        </div>
+        </section>
+        <section class="chart-card" id="swatch-conversion-card" hidden>
+          <h3>Swatch conversion</h3>
+          <span class="scope-badge">all-time</span>
+          <p id="swatch-conversion-summary" class="card-headline"></p>
+          <p class="muted">
+            How often ordering a swatch led the same buyer to come back later for a full-size order of that same
+            design — all-time, not affected by the date filter above, since a sample can take months to convert.
+            Only signed-in buyers can be followed this way: Spoonflower anonymizes guest checkouts, so a guest's
+            swatch and their later order can't be tied to the same person. A full-size order placed the same day as
+            the swatch isn't counted, since that's almost always one combined order rather than a sample doing its job.
+          </p>
+          <table id="swatch-conversion-table">
+            <thead>
+              <tr>
+                <th>Design</th>
+                <th class="num">Swatches</th>
+                <th class="num">Converted</th>
+                <th class="num">Rate</th>
+              </tr>
+            </thead>
+            <tbody id="swatch-conversion-table-body"></tbody>
+          </table>
+        </section>
       </section>
 
-      <section class="chart-card" id="keywords-card" hidden>
-        <h2>Keywords</h2>
-        <p class="muted">
-          Run <strong>Sync Design Tags</strong> on the Spoondollar history page to refresh this. Multi-word tags are
-          split into individual words (e.g. "vintage golf sport" counts toward "vintage", "golf", and "sport"
-          separately) so a design's own repeated keyword phrasing doesn't dominate the list without telling you
-          much — ordered here by how many different designs share a word first, then by revenue, so words proven
-          across your catalog surface above one design's own tag list. Totals run higher than your overall revenue,
-          since one design's sale counts toward each of its distinct words. Click a keyword to filter the
-          transaction table to the designs carrying it.
-        </p>
-        <p id="keywords-trend-caption" class="muted"></p>
-        <div id="keywords-grid" class="spark-grid"></div>
-        <button type="button" id="untagged-toggle" class="row-toggle" aria-expanded="false" hidden></button>
-        <ul id="untagged-list" class="buyer-design-list" hidden></ul>
-      </section>
-
-      <section class="chart-card" id="design-families-card" hidden>
-        <h2>Design families</h2>
-        <p class="muted">
-          Designs grouped by how much of their tag vocabulary they share — which tends to recover the sets you
-          published together (one motif in several colorways, or a coordinate collection) without looking at the
-          images. Ranked by the group's combined revenue, so you can see which whole themes earn, not just which
-          individual designs do. Click a group's name to filter the transaction table to it.
-        </p>
-        <div id="design-families-list"></div>
-      </section>
-
-      <section class="chart-card" id="swatch-conversion-card" hidden>
-        <h2>Swatch conversion</h2>
-        <p id="swatch-conversion-summary" class="card-headline"></p>
-        <p class="muted">
-          How often ordering a swatch led the same buyer to come back later for a full-size order of that same
-          design — all-time, not affected by the date filter above, since a sample can take months to convert.
-          Only signed-in buyers can be followed this way: Spoonflower anonymizes guest checkouts, so a guest's
-          swatch and their later order can't be tied to the same person. A full-size order placed the same day as
-          the swatch isn't counted, since that's almost always one combined order rather than a sample doing its job.
-        </p>
-        <table id="swatch-conversion-table">
-          <thead>
-            <tr>
-              <th>Design</th>
-              <th class="num">Swatches</th>
-              <th class="num">Converted</th>
-              <th class="num">Rate</th>
-            </tr>
-          </thead>
-          <tbody id="swatch-conversion-table-body"></tbody>
-        </table>
-      </section>
-
-      <section class="chart-card" id="new-design-performance-card" hidden>
-        <h2>New design performance</h2>
-        <p class="muted" id="new-design-performance-caption"></p>
-        <div class="stat-tiles stat-tiles--3col" id="new-design-performance-tiles"></div>
-      </section>
-
-      <section class="chart-card" id="customers-card" hidden>
-        <div class="table-header">
-          <h2>Customers</h2>
-          <div class="table-header-controls">
-            <button type="button" id="customers-repeat-toggle" class="filter-btn" aria-pressed="false">
+      <section class="page-section" id="sec-buyers">
+        <h2 class="section-heading">Buyers</h2>
+        <p class="section-blurb muted">Who is buying, and who comes back.</p>
+        <section class="chart-card" id="customers-card" hidden>
+          <div class="table-header">
+            <h3>Customers</h3>
+            <div class="table-header-controls">
+              <button type="button" id="customers-repeat-toggle" class="filter-btn" aria-pressed="false">
               Repeat buyers only
-            </button>
-            <button type="button" id="buyer-notes-export" class="filter-btn">Export tags/notes</button>
-            <button type="button" id="buyer-notes-import" class="filter-btn">Import</button>
-            <input id="buyer-notes-file" type="file" accept="application/json,.json" hidden />
-            <input id="customer-search" type="search" placeholder="Search by name, tag, or note…" />
+              </button>
+              <button type="button" id="buyer-notes-export" class="filter-btn">Export tags/notes</button>
+              <button type="button" id="buyer-notes-import" class="filter-btn">Import</button>
+              <input id="buyer-notes-file" type="file" accept="application/json,.json" hidden />
+              <input id="customer-search" type="search" placeholder="Search by name, tag, or note…" />
+            </div>
           </div>
-        </div>
-        <p id="customers-summary" class="muted"></p>
-        <p class="muted">
-          Add your own tags or notes to any signed-in buyer — stored only in this browser, never sent anywhere.
-          Click a name to expand. Guest checkouts are anonymized by Spoonflower and can't be listed here.
-        </p>
-        <div class="table-scroll">
-          <table id="customers-table">
-            <thead>
-              <tr>
-                <th>Buyer</th>
-                <th class="num">Purchases</th>
-                <th class="num">Total spent</th>
-                <th>First purchase</th>
-                <th>Last purchase</th>
-              </tr>
-            </thead>
-            <tbody id="customers-table-body"></tbody>
-          </table>
-        </div>
-        <p id="customers-count" class="muted"></p>
+          <p id="customers-summary" class="muted"></p>
+          <p class="muted">
+            Add your own tags or notes to any signed-in buyer — stored only in this browser, never sent anywhere.
+            Click a name to expand. Guest checkouts are anonymized by Spoonflower and can't be listed here.
+          </p>
+          <div class="table-scroll">
+            <table id="customers-table">
+              <thead>
+                <tr>
+                  <th>Buyer</th>
+                  <th class="num">Purchases</th>
+                  <th class="num">Total spent</th>
+                  <th>First purchase</th>
+                  <th>Last purchase</th>
+                </tr>
+              </thead>
+              <tbody id="customers-table-body"></tbody>
+            </table>
+          </div>
+          <p id="customers-count" class="muted"></p>
+        </section>
       </section>
 
-      <section class="chart-card" id="returns-card" hidden>
-        <h2>Returns</h2>
-        <p id="returns-total" class="muted"></p>
-        <p id="return-rate-caption" class="muted">
-          By design, all-time (not affected by the date filter above): returns as a % of that design's sales
-          (line-item basis — a multi-item order canceled in full counts as one return per item). Only designs with
-          at least one return are shown, worst first.
-        </p>
-        <table id="return-rate-table">
-          <thead>
-            <tr>
-              <th>Design</th>
-              <th class="num">Sales</th>
-              <th class="num">Returns</th>
-              <th class="num">Return rate</th>
-            </tr>
-          </thead>
-          <tbody id="return-rate-table-body"></tbody>
-        </table>
+      <section class="page-section" id="sec-data">
+        <h2 class="section-heading">Data</h2>
+        <p class="section-blurb muted">Everything underneath, raw.</p>
+        <section class="chart-card">
+          <div class="table-header">
+            <h3>All transactions</h3>
+            <input id="table-search" type="search" placeholder="Filter by design name or product…" />
+          </div>
+          <div id="drill-filter-chip" class="filter-chip" hidden>
+            <span id="drill-filter-label"></span>
+            <button type="button" id="drill-filter-clear" aria-label="Clear filter">×</button>
+          </div>
+          <div class="table-scroll">
+            <table id="tx-table">
+              <thead>
+                <tr>
+                  <th data-sort="date">Date</th>
+                  <th data-sort="designName">Design</th>
+                  <th data-sort="productName">Product</th>
+                  <th data-sort="category">Category</th>
+                  <th data-sort="buyer">Buyer</th>
+                  <th data-sort="amount" class="num">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="tx-table-body"></tbody>
+            </table>
+          </div>
+          <p id="table-count" class="muted"></p>
+        </section>
       </section>
 
-      <section class="chart-card">
-        <div class="table-header">
-          <h2>All transactions</h2>
-          <input id="table-search" type="search" placeholder="Filter by design name or product…" />
-        </div>
-        <div id="drill-filter-chip" class="filter-chip" hidden>
-          <span id="drill-filter-label"></span>
-          <button type="button" id="drill-filter-clear" aria-label="Clear filter">×</button>
-        </div>
-        <div class="table-scroll">
-          <table id="tx-table">
-            <thead>
-              <tr>
-                <th data-sort="date">Date</th>
-                <th data-sort="designName">Design</th>
-                <th data-sort="productName">Product</th>
-                <th data-sort="category">Category</th>
-                <th data-sort="buyer">Buyer</th>
-                <th data-sort="amount" class="num">Amount</th>
-              </tr>
-            </thead>
-            <tbody id="tx-table-body"></tbody>
-          </table>
-        </div>
-        <p id="table-count" class="muted"></p>
-      </section>
     </main>
 
     <div id="thumb-preview" hidden><img alt="" /></div>

@@ -52,7 +52,13 @@ back in one response.
   from the content script and writes them to IndexedDB (the content script
   itself can't reach the extension's storage directly, since it runs at
   spoonflower.com's origin).
-- **Dashboard** (`dashboard/`) — a full analytics view: revenue trend with a
+- **Dashboard** (`dashboard/`) — organised into six sections, with a sticky
+  jump-nav across the top: **Performance** (headline tiles, revenue trend,
+  payouts, returns), **Designs**, **Keywords**, **Products & pricing**,
+  **Buyers**, and **Data**. Cards whose numbers deliberately ignore the
+  date filter — because they need a design's whole history to mean
+  anything — carry an "all-time" badge, so neighbouring cards disagreeing
+  about scope reads as intentional rather than as a bug. In full: revenue trend with a
   period-over-period delta, top designs (linked to their Spoonflower
   product pages), revenue by category and by substrate (wallpaper/fabric
   types, each with a $/unit average), revenue by tag, keyword trends,
