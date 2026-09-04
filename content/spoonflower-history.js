@@ -139,6 +139,17 @@
     });
   }
 
+  // The paginator's page-number input carries the page count as its max
+  // attribute ("of 32" is rendered beside it from the same number), which
+  // is the one semantically-meaningful place to read it from. Returns null
+  // when there's no paginator at all — a seller whose whole library fits on
+  // one page won't have one — and callers fall back to counting as they go.
+  function parseTotalDesignPages(doc) {
+    const pageInput = doc.querySelector('input[name="designs_page"]');
+    const max = pageInput ? parseInt(pageInput.getAttribute("max"), 10) : NaN;
+    return Number.isFinite(max) && max > 0 ? max : null;
+  }
+
   // Same-origin fetch, no account id needed (scoped to whoever's logged in).
   // number=72 is the page size observed on the live site; the loop in
   // runSyncDesignTags stops as soon as a page comes back with zero design
@@ -156,7 +167,7 @@
     if (!res.ok) throw new Error(`HTTP ${res.status} fetching design library page ${pageNum}`);
     const html = await res.text();
     const doc = new DOMParser().parseFromString(html, "text/html");
-    return parseDesignLibraryPage(doc);
+    return { designs: parseDesignLibraryPage(doc), totalPages: parseTotalDesignPages(doc) };
   }
 
   async function runSyncDesignTags(panel) {
@@ -164,19 +175,20 @@
     const MAX_PAGES = 200; // safety cap — 200 * 72 ≈ 14,400 designs
     let allDesigns = [];
     try {
-      for (let pageNum = 1; pageNum <= MAX_PAGES; pageNum++) {
-        // The total page count isn't known up front — the loop discovers
-        // the end by hitting an empty page — so progress is reported as a
-        // running tally rather than "page X of Y".
-        setStatus(
-          panel,
-          pageNum === 1
-            ? "Fetching design library page 1…"
-            : `Fetching design library page ${pageNum}… (${allDesigns.length} designs so far)`
-        );
-        const designs = await fetchDesignLibraryPage(pageNum);
-        if (designs.length === 0) break;
-        allDesigns = allDesigns.concat(designs);
+      // Read from the paginator on the first page we fetch; stays null if
+      // this library has no paginator (one page of designs).
+      let totalPages = null;
+      for (let pageNum = 1; pageNum <= (totalPages || MAX_PAGES); pageNum++) {
+        const ofTotal = totalPages ? ` of ${totalPages}` : "";
+        const soFar = pageNum === 1 ? "" : ` (${allDesigns.length} designs so far)`;
+        setStatus(panel, `Fetching design library page ${pageNum}${ofTotal}…${soFar}`);
+
+        const page = await fetchDesignLibraryPage(pageNum);
+        if (totalPages === null) totalPages = page.totalPages;
+        // Still the authoritative stop condition: an empty page ends the
+        // run whether or not the paginator gave us a count to bound by.
+        if (page.designs.length === 0) break;
+        allDesigns = allDesigns.concat(page.designs);
         await sleep(300); // be gentle with Spoonflower's server
       }
       const r = await safeSendMessage({ type: "SYNC_DESIGN_TAGS", records: allDesigns });
