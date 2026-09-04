@@ -43,9 +43,11 @@ back in one response.
   - **Sync Design Tags** — fetches your design library
     (`/designs?...&look=batch&...`) page by page (72 designs per page,
     stops once a page comes back empty) and pulls each design's tags,
-    status, and full name from the batch-edit markup. Powers the
-    dashboard's "Revenue by tag" breakdown — not a transaction source, just
-    metadata joined against designId.
+    status, full name, and thumbnail URL from the batch-edit markup.
+    Powers the dashboard's "Revenue by tag" breakdown and its design
+    thumbnails — not a transaction source, just metadata joined against
+    designId. The thumbnail costs no extra request: its URL is already in
+    the library markup, and only that URL is stored, never the image data.
 - **Background service worker** (`background/`) — receives parsed records
   from the content script and writes them to IndexedDB (the content script
   itself can't reach the extension's storage directly, since it runs at
@@ -62,9 +64,10 @@ back in one response.
   Clicking a bar in Top Designs or Revenue by Tag filters the transaction
   table to just that design's or tag's records (click the chip's × to
   clear it). Clicking a Top Designs bar's dollar value instead opens a
-  detail view for that design: lifetime net revenue, units, returns,
-  a monthly revenue trend, and buyer-type/product breakdowns — all
-  all-time, not scoped to the date filter. A **Customers** card lists
+  detail view for that design: its thumbnail, lifetime net revenue, units,
+  returns, a monthly revenue trend, and buyer-type/product breakdowns —
+  all all-time, not scoped to the date filter. Once design tags are
+  synced, Top Designs shows each design's thumbnail inline too. A **Customers** card lists
   every signed-in buyer with a per-buyer design breakdown plus your own
   free-text tags and private notes attached (e.g. "interior designer",
   wholesale terms) — stored locally only, searchable by name, tag, or note
@@ -101,8 +104,17 @@ back in one response.
 
 ## Data & privacy
 
-- Everything is stored locally in your browser's IndexedDB; nothing is
-  transmitted off your machine.
+- Everything is stored locally in your browser's IndexedDB; none of your
+  data is transmitted off your machine.
+- One caveat to that, worth stating plainly: design thumbnails are stored
+  as URLs pointing at Spoonflower's image CDN, not as copied image data.
+  So when the dashboard displays them, your browser requests those images
+  from `img.spoonflower.com` — which means Spoonflower's CDN can see that
+  you opened the dashboard, the same way it would if you were browsing
+  your design library. No data of yours is sent in those requests, and
+  nothing goes to any third party. If you'd rather the dashboard make no
+  network requests at all, delete your `designTags` store (or just don't
+  run Sync Design Tags) and everything else still works.
 - The synced data includes buyer usernames as shown in Spoonflower's own
   export. These are stored locally like any other field but are not
   surfaced in the dashboard's charts — only in the raw transaction table,
@@ -119,11 +131,12 @@ best/worst sellers, product-type (wallpaper/fabric) breakdown with $/unit
 pricing, revenue by tag, new design performance (30/60/90-day revenue
 share), returns (with an all-time return-rate-by-design breakdown), a
 Customers card with user-editable tags/notes and a repeat-buyer filter, a
-per-design detail view (lifetime trend, buyer type and product mix),
-official payout figures, click-to-drill chart filtering, refund/guest-
-checkout stat notes, and CSV export. A natural next addition: design
-thumbnails synced alongside tags, and a top-vs-bottom design
-name/keyword comparison (what words show up on your best sellers vs.
-your weakest ones) — a design-performance view showing view/favorite
-counts isn't possible unless Spoonflower exposes those alongside sales
-somewhere we haven't found yet.
+per-design detail view (lifetime trend, buyer type and product mix,
+with the design's thumbnail), official payout figures, click-to-drill
+chart filtering, refund/guest-checkout stat notes, and CSV export. A
+natural next addition: a top-vs-bottom design name/keyword comparison
+(what words show up on your best sellers vs. your weakest ones), and an
+export/import path for the buyer tags and notes, which currently exist
+only in this browser with no backup — a design-performance view showing
+view/favorite counts isn't possible unless Spoonflower exposes those
+alongside sales somewhere we haven't found yet.

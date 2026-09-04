@@ -103,7 +103,10 @@
   // full tag list as a single comma-joined <p class="edit-text"> inside
   // #keywords_{id} (a decoupled duplicate edit form nearby holds the same
   // tags one-per-element for removal buttons, but the comma-joined text is
-  // simpler to split and equally complete).
+  // simpler to split and equally complete), and the thumbnail as
+  // <img class="design_image"> (the hover-preview <img> alongside it points
+  // at the very same URL, just rendered larger, so there's only one image
+  // URL per design to capture and no second request to make).
   function parseDesignLibraryPage(doc) {
     const rows = Array.from(doc.querySelectorAll("tr[id]")).filter((tr) => /^\d+$/.test(tr.id));
     return rows.map((tr) => {
@@ -125,7 +128,14 @@
               .map((t) => t.trim())
               .filter(Boolean)
           : [];
-      return { designId, name, status, tags };
+      // getAttribute, not .src: this document came from DOMParser rather
+      // than a real navigation, so the .src property's URL resolution has
+      // no meaningful base to resolve against. The attribute is already an
+      // absolute https://img.spoonflower.com/... URL anyway.
+      const thumbEl = tr.querySelector("img.design_image");
+      const thumbnailUrl = thumbEl ? thumbEl.getAttribute("src") : null;
+
+      return { designId, name, status, tags, thumbnailUrl };
     });
   }
 

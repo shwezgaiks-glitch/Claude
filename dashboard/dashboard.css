@@ -246,6 +246,16 @@ a.bar-label:focus-visible {
   color: var(--series-1);
   text-decoration: underline;
 }
+.bar-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  object-fit: cover;
+  margin-right: 6px;
+  vertical-align: -5px;
+  background: var(--gridline);
+}
+
 .bar-row .bar-track {
   flex: 1;
   position: relative;
@@ -589,6 +599,20 @@ svg.chart-svg {
   align-items: flex-start;
   gap: 16px;
   margin-bottom: 12px;
+}
+.modal-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.modal-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--gridline);
 }
 .modal-header h2 {
   margin: 0 0 2px;

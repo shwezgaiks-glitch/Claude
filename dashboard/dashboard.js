@@ -119,6 +119,24 @@ function buildDesignLinkEl(designId, name, productTypeRevenueMap) {
   return a;
 }
 
+// Design thumbnails come from Sync Design Tags, which stores only the
+// image's URL on Spoonflower's CDN — not the image bytes — so rendering one
+// means the browser fetches it from img.spoonflower.com at view time.
+// loading="lazy" keeps a long list from firing dozens of requests at once,
+// and a failed load hides the element rather than leaving a broken-image
+// icon (a design deleted on Spoonflower still has a stale URL stored here).
+function buildThumbnailEl(url, altText, className) {
+  const img = document.createElement("img");
+  img.className = className;
+  img.src = url;
+  img.alt = altText || ""; // scraped design name — set as a property, never parsed as markup
+  img.loading = "lazy";
+  img.addEventListener("error", () => {
+    img.hidden = true;
+  });
+  return img;
+}
+
 // ---------- Stat tiles ----------
 
 function renderStatTiles(container, stats) {
@@ -314,7 +332,10 @@ function renderBarChart(container, items) {
       label.target = "_blank";
       label.rel = "noopener noreferrer";
     }
-    label.textContent = item.label; // scraped design/category name — textContent only
+    if (item.thumbnailUrl) {
+      label.appendChild(buildThumbnailEl(item.thumbnailUrl, item.label, "bar-thumb"));
+    }
+    label.appendChild(document.createTextNode(item.label)); // scraped design/category name — text node only
     label.title = item.label;
 
     const track = document.createElement("div");
@@ -399,6 +420,7 @@ let currentRange = "all";
 let currentSort = { key: "date", dir: "desc" };
 let currentSearch = "";
 let tagsByDesignId = new Map(); // designId -> string[] tags, from Sync Design Tags
+let thumbnailsByDesignId = new Map(); // designId -> image URL (not image data), from Sync Design Tags
 let designRollups = new Map(); // designId -> all-time sale/return rollup, from buildDesignRollups
 let currentDrillFilter = null; // { label: string, designIds: Set<string> } | null — set by clicking a chart bar
 let buyerNotesByBuyer = new Map(); // buyer -> { buyer, tags: string[], notes: string, updatedAt } — user-entered, never scraped
@@ -590,6 +612,7 @@ function renderAll() {
         label: `${d.name} (#${d.designId})`,
         value: d.value,
         href: designUrl(d.designId, bestSlug),
+        thumbnailUrl: thumbnailsByDesignId.get(d.designId),
         onClick: () => applyDrillFilter({ label: d.name, designIds: new Set([d.designId]) }),
         onDetailClick: () => openDesignDetail(d.designId)
       };
@@ -712,6 +735,11 @@ function openDesignDetail(designId) {
 
   document.getElementById("design-detail-title").textContent = detail.name;
   document.getElementById("design-detail-link").href = designUrl(detail.designId, bestProductType(detail.productTypeRevenue));
+
+  const thumbSlot = document.getElementById("design-detail-thumb");
+  thumbSlot.replaceChildren();
+  const thumbUrl = thumbnailsByDesignId.get(detail.designId);
+  if (thumbUrl) thumbSlot.appendChild(buildThumbnailEl(thumbUrl, detail.name, "modal-thumb"));
 
   const tiles = [
     { label: "Net revenue", value: formatCurrency(detail.netRevenue) },
@@ -1406,6 +1434,7 @@ async function init() {
     getAllBuyerNotes()
   ]);
   tagsByDesignId = new Map(designTags.map((d) => [d.designId, d.tags || []]));
+  thumbnailsByDesignId = new Map(designTags.filter((d) => d.thumbnailUrl).map((d) => [d.designId, d.thumbnailUrl]));
   buyerNotesByBuyer = new Map(buyerNotes.map((n) => [n.buyer, n]));
   renderPayoutsTable(yearlySummaries);
 
