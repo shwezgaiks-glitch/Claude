@@ -113,12 +113,18 @@
       const statusEl = tr.querySelector(".library_box_status:not(.selectable)");
       const status = statusEl ? SpoonflowerParser.normalizeWhitespace(statusEl.textContent) : null;
       const keywordsP = tr.querySelector(`#keywords_${designId} .edit-text`);
-      const tags = keywordsP
-        ? keywordsP.textContent
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean)
-        : [];
+      // Spoonflower shows the literal placeholder text "Click to edit" in
+      // this field for any design with no keywords set — read as-is, that
+      // placeholder gets scraped as if it were a real tag on every
+      // untagged design. Treat it the same as an empty field.
+      const keywordsText = keywordsP ? keywordsP.textContent.trim() : "";
+      const tags =
+        keywordsText && keywordsText.toLowerCase() !== "click to edit"
+          ? keywordsText
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : [];
       return { designId, name, status, tags };
     });
   }
