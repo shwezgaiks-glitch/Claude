@@ -1,4 +1,12 @@
-import { getAllTransactions, getMeta, getAllYearlySummaries, getAllDesignTags, clearAllTransactions } from "../lib/db.js";
+import {
+  getAllTransactions,
+  getMeta,
+  getAllYearlySummaries,
+  getAllDesignTags,
+  clearAllTransactions,
+  getAllBuyerNotes,
+  putBuyerNote
+} from "../lib/db.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -363,6 +371,24 @@ function renderBarChart(container, items) {
         }
       });
     }
+
+    // A separate, optional detail-view trigger on the value text (kept
+    // distinct from onClick's drill filter and from the label's external
+    // link, so all three can coexist on the same row without stepping on
+    // each other) — currently only Top Designs wires this up.
+    if (typeof item.onDetailClick === "function") {
+      value.classList.add("bar-value--clickable");
+      value.tabIndex = 0;
+      value.setAttribute("role", "button");
+      value.setAttribute("aria-label", `View details for ${item.label}`);
+      value.addEventListener("click", item.onDetailClick);
+      value.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          item.onDetailClick();
+        }
+      });
+    }
   });
 }
 
@@ -375,6 +401,8 @@ let currentSearch = "";
 let tagsByDesignId = new Map(); // designId -> string[] tags, from Sync Design Tags
 let designRollups = new Map(); // designId -> all-time sale/return rollup, from buildDesignRollups
 let currentDrillFilter = null; // { label: string, designIds: Set<string> } | null — set by clicking a chart bar
+let buyerNotesByBuyer = new Map(); // buyer -> { buyer, tags: string[], notes: string, updatedAt } — user-entered, never scraped
+let currentCustomerSearch = "";
 
 function applyDrillFilter(filter) {
   currentDrillFilter = filter;
@@ -561,7 +589,8 @@ function renderAll() {
         label: `${d.name} (#${d.designId})`,
         value: d.value,
         href: designUrl(d.designId, bestSlug),
-        onClick: () => applyDrillFilter({ label: d.name, designIds: new Set([d.designId]) })
+        onClick: () => applyDrillFilter({ label: d.name, designIds: new Set([d.designId]) }),
+        onDetailClick: () => openDesignDetail(d.designId)
       };
     });
   renderBarChart(document.getElementById("top-designs-chart"), topDesigns);
@@ -585,6 +614,7 @@ function renderAll() {
 
   renderTagRevenue(earnings);
   renderRepeatBuyers(earnings);
+  renderCustomers(earnings);
   renderReturnsCard(scoped);
   renderTable(scoped);
 }
@@ -617,6 +647,110 @@ function buildDesignRollups(records) {
     byDesign.set(r.designId, prev);
   });
   return byDesign;
+}
+
+// ---------- Design detail modal (all-time, not scoped to the date filter) ----------
+// Same reasoning as the return-rate table: a design's lifetime trend and mix
+// only mean something against its full history, not whatever slice of time
+// happens to be selected above.
+
+function buildDesignDetail(designId) {
+  const records = allRecords.filter((r) => r.designId === designId);
+  const earnings = records.filter(isEarningRecord);
+  const returns = records.filter((r) => r.type === "return");
+
+  const name = (earnings[0] && earnings[0].designName) || (returns[0] && returns[0].designName) || designId;
+  const grossRevenue = earnings.reduce((s, r) => s + r.amount, 0);
+  const refundTotal = Math.abs(returns.reduce((s, r) => s + r.amount, 0));
+  const unitsSold = earnings.reduce((s, r) => s + (r.quantity || 1), 0);
+
+  const dates = earnings.map((r) => r.date).filter(Boolean).sort();
+
+  const guestEarnings = earnings.filter((r) => !r.buyer);
+  const signedInEarnings = earnings.filter((r) => r.buyer);
+
+  const byProduct = new Map();
+  const productTypeRevenue = new Map();
+  earnings.forEach((r) => {
+    const key = r.productName || "Unspecified";
+    const prev = byProduct.get(key) || { label: key, value: 0 };
+    prev.value += r.amount;
+    byProduct.set(key, prev);
+
+    const slug = classifyProductType(r.productRaw, r.productName, r.category);
+    productTypeRevenue.set(slug, (productTypeRevenue.get(slug) || 0) + r.amount);
+  });
+
+  return {
+    designId,
+    name,
+    grossRevenue,
+    refundTotal,
+    netRevenue: grossRevenue - refundTotal,
+    salesCount: earnings.length,
+    returnCount: returns.length,
+    unitsSold,
+    firstSold: dates[0] || null,
+    lastSold: dates[dates.length - 1] || null,
+    trend: bucketByMonth(earnings),
+    guestCount: guestEarnings.length,
+    guestRevenue: guestEarnings.reduce((s, r) => s + r.amount, 0),
+    signedInCount: signedInEarnings.length,
+    signedInRevenue: signedInEarnings.reduce((s, r) => s + r.amount, 0),
+    byProduct: Array.from(byProduct.values()).sort((a, b) => b.value - a.value),
+    productTypeRevenue
+  };
+}
+
+function closeDesignDetail() {
+  document.getElementById("design-detail-modal").hidden = true;
+}
+
+function openDesignDetail(designId) {
+  const detail = buildDesignDetail(designId);
+  const modal = document.getElementById("design-detail-modal");
+
+  document.getElementById("design-detail-title").textContent = detail.name;
+  document.getElementById("design-detail-link").href = designUrl(detail.designId, bestProductType(detail.productTypeRevenue));
+
+  const tiles = [
+    { label: "Net revenue", value: formatCurrency(detail.netRevenue) },
+    { label: "Units sold", value: detail.unitsSold.toLocaleString() },
+    { label: "Sales", value: detail.salesCount.toLocaleString() },
+    { label: "Returns", value: detail.returnCount.toLocaleString() }
+  ];
+  const tilesEl = document.getElementById("design-detail-tiles");
+  tilesEl.replaceChildren();
+  tiles.forEach((t) => {
+    const div = document.createElement("div");
+    div.className = "stat-tile";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = t.label;
+    const value = document.createElement("div");
+    value.className = "value";
+    value.textContent = t.value;
+    div.append(label, value);
+    tilesEl.appendChild(div);
+  });
+
+  document.getElementById("design-detail-dates").textContent = detail.firstSold
+    ? `First sold ${detail.firstSold} · Last sold ${detail.lastSold}`
+    : "No sales recorded yet.";
+
+  renderTrendChart(document.getElementById("design-detail-trend"), detail.trend);
+
+  const buyerTypeItems = [
+    { label: "Signed-in", value: detail.signedInRevenue, valueLabel: `${formatCurrency(detail.signedInRevenue)} · ${detail.signedInCount}` },
+    { label: "Guest", value: detail.guestRevenue, valueLabel: `${formatCurrency(detail.guestRevenue)} · ${detail.guestCount}` }
+  ];
+  renderBarChart(document.getElementById("design-detail-buyer-types"), buyerTypeItems);
+
+  const productItems = detail.byProduct.map((p) => ({ label: p.label, value: p.value }));
+  renderBarChart(document.getElementById("design-detail-products"), productItems);
+
+  modal.hidden = false;
+  document.getElementById("design-detail-close").focus();
 }
 
 // Whether designs make most of their money in a quick spike right after
@@ -831,11 +965,15 @@ function renderSubstrateBreakdown(container, earnings, category) {
   renderBarChart(container, items);
 }
 
-function renderRepeatBuyers(earnings) {
-  const card = document.getElementById("repeat-buyers-card");
+// Shared by Repeat Buyers and Customers — both need the same per-buyer
+// aggregation (purchase count/total/dates plus a per-design breakdown),
+// just filtered and rendered differently. Guest checkouts are anonymized
+// to a null buyer by Spoonflower and can't be tracked as a person at all,
+// so they're excluded here rather than in each caller.
+function buildBuyerSummaries(earnings) {
   const byBuyer = new Map();
   earnings.forEach((r) => {
-    if (!r.buyer) return; // guest checkouts are anonymized to null and can't be tracked as repeats
+    if (!r.buyer) return;
     const prev = byBuyer.get(r.buyer) || { buyer: r.buyer, count: 0, total: 0, first: r.date, last: r.date, designs: new Map() };
     prev.count += 1;
     prev.total += r.amount;
@@ -858,8 +996,39 @@ function renderRepeatBuyers(earnings) {
 
     byBuyer.set(r.buyer, prev);
   });
+  return Array.from(byBuyer.values());
+}
 
-  const repeats = Array.from(byBuyer.values())
+function buildBuyerDesignListEl(designsMap) {
+  const designList = document.createElement("ul");
+  designList.className = "buyer-design-list";
+  Array.from(designsMap.values())
+    .sort((a, c) => c.total - a.total)
+    .forEach((d) => {
+      const li = document.createElement("li");
+      let nameEl;
+      if (d.designId) {
+        const bestSlug = Array.from(d.productTypeRevenue.entries()).sort((a, c) => c[1] - a[1])[0][0];
+        nameEl = document.createElement("a");
+        nameEl.href = designUrl(d.designId, bestSlug);
+        nameEl.target = "_blank";
+        nameEl.rel = "noopener noreferrer";
+      } else {
+        nameEl = document.createElement("span");
+      }
+      nameEl.textContent = d.design; // scraped design name — textContent only
+      const valueSpan = document.createElement("span");
+      valueSpan.className = "num";
+      valueSpan.textContent = `${d.count}× — ${formatCurrency(d.total)}`;
+      li.append(nameEl, valueSpan);
+      designList.appendChild(li);
+    });
+  return designList;
+}
+
+function renderRepeatBuyers(earnings) {
+  const card = document.getElementById("repeat-buyers-card");
+  const repeats = buildBuyerSummaries(earnings)
     .filter((b) => b.count >= 2)
     .sort((a, b) => b.count - a.count || b.total - a.total)
     .slice(0, 25);
@@ -905,33 +1074,172 @@ function renderRepeatBuyers(earnings) {
     detailTr.hidden = true;
     const detailTd = document.createElement("td");
     detailTd.colSpan = 5;
-    const designList = document.createElement("ul");
-    designList.className = "buyer-design-list";
-    Array.from(b.designs.values())
-      .sort((a, c) => c.total - a.total)
-      .forEach((d) => {
-        const li = document.createElement("li");
-        let nameEl;
-        if (d.designId) {
-          const bestSlug = Array.from(d.productTypeRevenue.entries()).sort((a, c) => c[1] - a[1])[0][0];
-          nameEl = document.createElement("a");
-          nameEl.href = designUrl(d.designId, bestSlug);
-          nameEl.target = "_blank";
-          nameEl.rel = "noopener noreferrer";
-        } else {
-          nameEl = document.createElement("span");
-        }
-        nameEl.textContent = d.design; // scraped design name — textContent only
-        const valueSpan = document.createElement("span");
-        valueSpan.className = "num";
-        valueSpan.textContent = `${d.count}× — ${formatCurrency(d.total)}`;
-        li.append(nameEl, valueSpan);
-        designList.appendChild(li);
-      });
-    detailTd.appendChild(designList);
+    detailTd.appendChild(buildBuyerDesignListEl(b.designs));
     detailTr.appendChild(detailTd);
     tbody.appendChild(detailTr);
   });
+}
+
+// ---------- Customers (tags & notes) ----------
+// User-entered labels/notes per buyer, stored locally only — never scraped,
+// never sent anywhere. Persists in the buyerNotes store, keyed by buyer
+// username, independent of the date filter (a note about a buyer doesn't
+// stop applying when you switch ranges).
+
+async function saveBuyerNote(buyer, patch) {
+  const existing = buyerNotesByBuyer.get(buyer) || { buyer, tags: [], notes: "" };
+  const updated = { ...existing, ...patch, buyer, updatedAt: new Date().toISOString() };
+  buyerNotesByBuyer.set(buyer, updated);
+  await putBuyerNote(updated);
+  return updated;
+}
+
+async function addBuyerTag(buyer, tag) {
+  const normalized = tag.trim();
+  if (!normalized) return;
+  const existing = buyerNotesByBuyer.get(buyer) || { buyer, tags: [], notes: "" };
+  if (existing.tags.includes(normalized)) return;
+  await saveBuyerNote(buyer, { tags: [...existing.tags, normalized] });
+}
+
+async function removeBuyerTag(buyer, tag) {
+  const existing = buyerNotesByBuyer.get(buyer);
+  if (!existing) return;
+  await saveBuyerNote(buyer, { tags: existing.tags.filter((t) => t !== tag) });
+}
+
+function renderCustomerTagChips(container, buyer) {
+  container.replaceChildren();
+  const note = buyerNotesByBuyer.get(buyer);
+  const tags = (note && note.tags) || [];
+  tags.forEach((tag) => {
+    const chip = document.createElement("span");
+    chip.className = "tag-chip";
+    chip.textContent = tag; // user-entered text — textContent only
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "×";
+    removeBtn.setAttribute("aria-label", `Remove tag ${tag}`);
+    removeBtn.className = "tag-chip-remove";
+    removeBtn.dataset.buyer = buyer;
+    removeBtn.dataset.tag = tag;
+    chip.appendChild(removeBtn);
+    container.appendChild(chip);
+  });
+}
+
+function updateCustomerRowTagsEl(el, buyer) {
+  const note = buyerNotesByBuyer.get(buyer);
+  const tags = (note && note.tags) || [];
+  el.hidden = tags.length === 0;
+  el.textContent = tags.length ? " " + tags.join(", ") : ""; // user-entered text — textContent only
+}
+
+// Patches the collapsed row's inline tag summary for one buyer in place,
+// so adding/removing a tag from the expanded detail panel doesn't require
+// a full table re-render (which would collapse every expanded row).
+function refreshCustomerRowTags(buyer) {
+  const toggle = document.querySelector(`#customers-table-body .row-toggle[data-buyer="${CSS.escape(buyer)}"]`);
+  const rowTags = toggle && toggle.nextElementSibling;
+  if (rowTags && rowTags.classList.contains("customer-row-tags")) {
+    updateCustomerRowTagsEl(rowTags, buyer);
+  }
+}
+
+function renderCustomers(earnings) {
+  const card = document.getElementById("customers-card");
+  const buyers = buildBuyerSummaries(earnings);
+  if (buyers.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  let filtered = buyers;
+  if (currentCustomerSearch) {
+    filtered = filtered.filter((b) => {
+      if (b.buyer.toLowerCase().includes(currentCustomerSearch)) return true;
+      const note = buyerNotesByBuyer.get(b.buyer);
+      if (!note) return false;
+      if ((note.notes || "").toLowerCase().includes(currentCustomerSearch)) return true;
+      return (note.tags || []).some((t) => t.toLowerCase().includes(currentCustomerSearch));
+    });
+  }
+  filtered = filtered.slice().sort((a, b) => b.total - a.total);
+
+  const MAX_ROWS = 200;
+  const shown = filtered.slice(0, MAX_ROWS);
+  const tbody = document.getElementById("customers-table-body");
+  tbody.replaceChildren();
+  shown.forEach((b, i) => {
+    const detailId = `customer-detail-${i}`;
+
+    const tr = document.createElement("tr");
+    const buyerTd = document.createElement("td");
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "row-toggle";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.dataset.target = detailId;
+    toggle.dataset.buyer = b.buyer;
+    toggle.textContent = "▸ " + b.buyer;
+    buyerTd.appendChild(toggle);
+
+    // Always present (even empty/hidden) so it can be found and patched in
+    // place by name after a tag add/remove, without a full table re-render.
+    const rowTags = document.createElement("span");
+    rowTags.className = "customer-row-tags";
+    buyerTd.appendChild(rowTags);
+    updateCustomerRowTagsEl(rowTags, b.buyer);
+
+    const countTd = document.createElement("td");
+    countTd.className = "num";
+    countTd.textContent = b.count.toLocaleString();
+    const totalTd = document.createElement("td");
+    totalTd.className = "num";
+    totalTd.textContent = formatCurrency(b.total);
+    const firstTd = document.createElement("td");
+    firstTd.textContent = b.first || "";
+    const lastTd = document.createElement("td");
+    lastTd.textContent = b.last || "";
+    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd);
+    tbody.appendChild(tr);
+
+    const detailTr = document.createElement("tr");
+    detailTr.id = detailId;
+    detailTr.className = "buyer-detail-row";
+    detailTr.hidden = true;
+    const detailTd = document.createElement("td");
+    detailTd.colSpan = 5;
+
+    const tagsRow = document.createElement("div");
+    tagsRow.className = "customer-tags-row";
+    const chipList = document.createElement("div");
+    chipList.className = "tag-chip-list";
+    renderCustomerTagChips(chipList, b.buyer);
+    const tagInput = document.createElement("input");
+    tagInput.type = "text";
+    tagInput.className = "tag-input";
+    tagInput.placeholder = "Add tag, press Enter";
+    tagInput.dataset.buyer = b.buyer;
+    tagsRow.append(chipList, tagInput);
+
+    const notesArea = document.createElement("textarea");
+    notesArea.className = "customer-notes";
+    notesArea.placeholder = "Private notes about this buyer — wholesale terms, custom requests, anything worth remembering.";
+    notesArea.dataset.buyer = b.buyer;
+    notesArea.value = (buyerNotesByBuyer.get(b.buyer) || {}).notes || "";
+
+    detailTd.append(tagsRow, notesArea, buildBuyerDesignListEl(b.designs));
+    detailTr.appendChild(detailTd);
+    tbody.appendChild(detailTr);
+  });
+
+  const countEl = document.getElementById("customers-count");
+  countEl.textContent =
+    filtered.length > MAX_ROWS
+      ? `Showing ${MAX_ROWS} of ${filtered.length.toLocaleString()} customers — search to narrow`
+      : `${filtered.length.toLocaleString()} customer${filtered.length === 1 ? "" : "s"}`;
 }
 
 // Merged card: the date-scoped summary line (how many/how much this period)
@@ -1119,12 +1427,14 @@ function applyRange(range) {
 
 async function init() {
   allRecords = await getAllTransactions();
-  const [lastSyncAt, yearlySummaries, designTags] = await Promise.all([
+  const [lastSyncAt, yearlySummaries, designTags, buyerNotes] = await Promise.all([
     getMeta("lastSyncAt"),
     getAllYearlySummaries(),
-    getAllDesignTags()
+    getAllDesignTags(),
+    getAllBuyerNotes()
   ]);
   tagsByDesignId = new Map(designTags.map((d) => [d.designId, d.tags || []]));
+  buyerNotesByBuyer = new Map(buyerNotes.map((n) => [n.buyer, n]));
   renderPayoutsTable(yearlySummaries);
 
   designRollups = buildDesignRollups(allRecords);
@@ -1167,6 +1477,59 @@ async function init() {
     btn.setAttribute("aria-expanded", String(!expanded));
     target.hidden = expanded;
     btn.textContent = (expanded ? "▸ " : "▾ ") + btn.dataset.buyer;
+  });
+
+  // Customers table: row expand/collapse (same pattern as Repeat Buyers),
+  // plus tag removal — both delegated since tbody is rebuilt on every
+  // re-render.
+  document.getElementById("customers-table").addEventListener("click", async (e) => {
+    const toggleBtn = e.target.closest(".row-toggle");
+    if (toggleBtn) {
+      const target = document.getElementById(toggleBtn.dataset.target);
+      if (!target) return;
+      const expanded = toggleBtn.getAttribute("aria-expanded") === "true";
+      toggleBtn.setAttribute("aria-expanded", String(!expanded));
+      target.hidden = expanded;
+      toggleBtn.textContent = (expanded ? "▸ " : "▾ ") + toggleBtn.dataset.buyer;
+      return;
+    }
+    const removeBtn = e.target.closest(".tag-chip-remove");
+    if (removeBtn) {
+      const chipList = removeBtn.closest(".tag-chip-list");
+      await removeBuyerTag(removeBtn.dataset.buyer, removeBtn.dataset.tag);
+      renderCustomerTagChips(chipList, removeBtn.dataset.buyer);
+      refreshCustomerRowTags(removeBtn.dataset.buyer);
+    }
+  });
+
+  document.getElementById("customers-table").addEventListener("keydown", async (e) => {
+    if (!e.target.classList.contains("tag-input") || e.key !== "Enter") return;
+    e.preventDefault();
+    const input = e.target;
+    await addBuyerTag(input.dataset.buyer, input.value);
+    input.value = "";
+    const chipList = input.closest(".customer-tags-row").querySelector(".tag-chip-list");
+    renderCustomerTagChips(chipList, input.dataset.buyer);
+    refreshCustomerRowTags(input.dataset.buyer);
+  });
+
+  // focusout (not blur) so it bubbles and can be delegated on the table.
+  document.getElementById("customers-table").addEventListener("focusout", (e) => {
+    if (!e.target.classList.contains("customer-notes")) return;
+    saveBuyerNote(e.target.dataset.buyer, { notes: e.target.value });
+  });
+
+  document.getElementById("customer-search").addEventListener("input", (e) => {
+    currentCustomerSearch = e.target.value.toLowerCase();
+    renderAll();
+  });
+
+  document.getElementById("design-detail-close").addEventListener("click", closeDesignDetail);
+  document.getElementById("design-detail-modal").addEventListener("click", (e) => {
+    if (e.target.id === "design-detail-modal") closeDesignDetail();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !document.getElementById("design-detail-modal").hidden) closeDesignDetail();
   });
 
   document.getElementById("untagged-toggle").addEventListener("click", () => {

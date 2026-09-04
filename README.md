@@ -62,7 +62,13 @@ back in one response.
   guest-checkout % surface as notes on the revenue and sales-count tiles.
   Clicking a bar in Top Designs or Revenue by Tag filters the transaction
   table to just that design's or tag's records (click the chip's × to
-  clear it).
+  clear it). Clicking a Top Designs bar's dollar value instead opens a
+  detail view for that design: lifetime net revenue, units, returns,
+  a monthly revenue trend, and buyer-type/product breakdowns — all
+  all-time, not scoped to the date filter. A **Customers** card lists
+  every signed-in buyer with your own free-text tags and private notes
+  attached (e.g. "interior designer", wholesale terms) — stored locally
+  only, searchable by name, tag, or note text.
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)
@@ -96,8 +102,11 @@ back in one response.
   transmitted off your machine.
 - The synced data includes buyer usernames as shown in Spoonflower's own
   export. These are stored locally like any other field but are not
-  surfaced in the dashboard's charts — only in the raw transaction table and
-  CSV export.
+  surfaced in the dashboard's charts — only in the raw transaction table,
+  the Customers card, and CSV export.
+- Buyer tags and notes (Customers card) are entirely your own typed
+  input — never scraped from Spoonflower, never sent anywhere, stored
+  only in this browser's IndexedDB alongside everything else.
 - Uninstalling the extension removes its local database.
 
 ## Extending
@@ -106,10 +115,12 @@ This version covers: revenue trend with period-over-period deltas,
 best/worst sellers, product-type (wallpaper/fabric) breakdown with $/unit
 pricing, revenue by tag, new design performance (30/60/90-day revenue
 share), returns (with an all-time return-rate-by-design breakdown),
-repeat buyers, official payout figures, click-to-drill chart filtering,
-refund/guest-checkout stat notes, and CSV export. A natural next addition:
-a top-vs-bottom design name/keyword comparison (what words show up on
-your best sellers vs. your weakest ones) — a design-performance view
-showing view/favorite counts
-isn't possible unless Spoonflower exposes those alongside sales somewhere
-we haven't found yet.
+repeat buyers, a Customers card with user-editable tags/notes, a
+per-design detail view (lifetime trend, buyer type and product mix),
+official payout figures, click-to-drill chart filtering, refund/guest-
+checkout stat notes, and CSV export. A natural next addition: design
+thumbnails synced alongside tags, and a top-vs-bottom design
+name/keyword comparison (what words show up on your best sellers vs.
+your weakest ones) — a design-performance view showing view/favorite
+counts isn't possible unless Spoonflower exposes those alongside sales
+somewhere we haven't found yet.
