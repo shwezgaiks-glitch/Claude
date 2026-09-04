@@ -191,7 +191,24 @@
         allDesigns = allDesigns.concat(page.designs);
         await sleep(300); // be gentle with Spoonflower's server
       }
-      const r = await safeSendMessage({ type: "SYNC_DESIGN_TAGS", records: allDesigns });
+      // The library is fetched with sort=newest, so a design's position in
+      // this list is its rank by upload recency: 0 is the most recently
+      // uploaded, the last index the oldest. Spoonflower's batch view
+      // exposes no upload date anywhere in its markup (columns are
+      // checkbox / image / name / description / thumbnail links /
+      // collection / keywords / action), so this ordering is the only
+      // age signal available without a second request per design — which
+      // is why the dashboard talks in "oldest quarter of your library"
+      // rather than in months.
+      //
+      // syncedAt is stamped identically on every record in one run so the
+      // dashboard can tell which designs were present in the *latest*
+      // sync. Records are upserted by designId and never deleted, so
+      // without this a design removed from the library would linger
+      // forever and keep reporting itself as a never-sold design.
+      const syncedAt = new Date().toISOString();
+      const records = allDesigns.map((d, i) => ({ ...d, libraryIndex: i, librarySize: allDesigns.length, syncedAt }));
+      const r = await safeSendMessage({ type: "SYNC_DESIGN_TAGS", records: records });
       if (!r.ok) {
         setStatus(
           panel,
@@ -201,7 +218,7 @@
         );
         return;
       }
-      setStatus(panel, `Synced tags for ${allDesigns.length} design(s) — open the Dashboard to see revenue by tag.`);
+      setStatus(panel, `Synced ${allDesigns.length} design(s) — open the Dashboard to see revenue by tag and which designs have never sold.`);
     } catch (err) {
       console.error("[Spoonflower Analytics] Sync Design Tags failed:", err);
       setStatus(panel, "Sync Design Tags failed — see console for details.");

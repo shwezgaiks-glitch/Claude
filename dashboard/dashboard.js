@@ -468,6 +468,7 @@ let currentSort = { key: "date", dir: "desc" };
 let currentSearch = "";
 let tagsByDesignId = new Map(); // designId -> string[] tags, from Sync Design Tags
 let thumbnailsByDesignId = new Map(); // designId -> image URL (not image data), from Sync Design Tags
+let designMetaById = new Map(); // designId -> full Sync Design Tags record (name, status, libraryIndex, syncedAt)
 let designRollups = new Map(); // designId -> all-time sale/return rollup, from buildDesignRollups
 let currentDrillFilter = null; // { label: string, designIds: Set<string> } | null — set by clicking a chart bar
 let buyerNotesByBuyer = new Map(); // buyer -> { buyer, tags: string[], notes: string, updatedAt } — user-entered, never scraped
@@ -1197,6 +1198,192 @@ function renderUntaggedDesigns(items) {
     li.appendChild(value);
     list.appendChild(li);
   });
+}
+
+// ---------- Never sold (design library, all-time) ----------
+// Answers a question the transaction data cannot answer on its own: a design
+// with no sales appears in no transaction, so it is invisible everywhere else
+// in this dashboard. The full catalogue exists only in the designTags store,
+// which is why this card needs Sync Design Tags to have been run.
+//
+// "How long ago it was uploaded" is deliberately expressed as a rank rather
+// than a date. Spoonflower's design library carries no upload date in any
+// column of its batch markup (checkbox / image / name / description /
+// thumbnail links / collection / keywords / action), so the one age signal
+// available without a separate request per design is the order the library
+// returns designs in under sort=newest — captured as libraryIndex at sync
+// time. That supports "this is among your oldest designs"; it cannot support
+// "this is 14 months old", so the card never claims to.
+
+const NEVER_SOLD_BUCKETS = 4;
+const NEVER_SOLD_BUCKET_LABELS = ["Newest quarter", "2nd quarter", "3rd quarter", "Oldest quarter"];
+const NEVER_SOLD_PREVIEW = 12;
+
+function buildNeverSold(records) {
+  if (designMetaById.size === 0) return null;
+  const all = Array.from(designMetaById.values());
+
+  // Designs deleted from the library on Spoonflower are never removed from
+  // this store — records are upserted by designId and nothing prunes them —
+  // so a stale one would keep reporting itself as an unsold design forever.
+  // Every record written by a single sync run carries the same syncedAt, so
+  // the newest value identifies the current catalogue. Records written
+  // before syncedAt existed carry none; then there's nothing to compare
+  // against and every record is kept rather than all of them dropped.
+  const stamps = all.map((d) => d.syncedAt).filter(Boolean);
+  const latestSync = stamps.length ? stamps.reduce((a, b) => (a > b ? a : b)) : null;
+  const current = all.filter((d) => !latestSync || d.syncedAt === latestSync);
+
+  // A design that isn't listed for sale can't sell, so counting it as "never
+  // sold" would be noise rather than a finding. "For Sale" is Spoonflower's
+  // own label in the library. A record with no status at all is kept, not
+  // dropped — that means status parsing failed, and silently hiding designs
+  // would be worse than including a private one.
+  const forSale = current.filter((d) => !d.status || /for sale/i.test(d.status));
+  const notForSale = current.length - forSale.length;
+
+  const sold = new Set();
+  records.forEach((r) => {
+    if (r.designId && (r.type === "sale" || r.type === "fill_a_yard")) sold.add(r.designId);
+  });
+
+  // All-or-nothing: one sync run stamps every record, so a mixed state only
+  // arises between versions. Without a complete ordering the age buckets
+  // would be meaningless, so they're withheld entirely rather than computed
+  // from a partial one.
+  const hasOrder = forSale.length > 0 && forSale.every((d) => Number.isFinite(d.libraryIndex));
+  const ordered = hasOrder ? forSale.slice().sort((a, b) => a.libraryIndex - b.libraryIndex) : forSale.slice();
+  const total = ordered.length;
+  const neverSold = ordered.filter((d) => !sold.has(d.designId));
+
+  let buckets = null;
+  if (hasOrder && total >= NEVER_SOLD_BUCKETS) {
+    buckets = NEVER_SOLD_BUCKET_LABELS.map((label, i) => {
+      // Sliced by rank within this filtered list, not by libraryIndex value:
+      // private and removed designs have been dropped above, so the
+      // surviving indices are sparse and cutting on them would give
+      // lopsided groups whose rates couldn't be compared.
+      const start = Math.round((i * total) / NEVER_SOLD_BUCKETS);
+      const end = Math.round(((i + 1) * total) / NEVER_SOLD_BUCKETS);
+      const slice = ordered.slice(start, end);
+      const unsold = slice.filter((d) => !sold.has(d.designId)).length;
+      return { label, size: slice.length, unsold, rate: slice.length ? unsold / slice.length : 0 };
+    });
+  }
+
+  // Oldest first: a design uploaded years ago that still hasn't sold has had
+  // every chance, which is the actionable end of the list. Newest-first
+  // would lead with designs published last week, where "no sales yet" is
+  // not yet information.
+  neverSold.sort((a, b) => (b.libraryIndex ?? 0) - (a.libraryIndex ?? 0));
+
+  return { total, neverSold, buckets, notForSale, hasOrder };
+}
+
+function buildNeverSoldTile(design) {
+  const fig = document.createElement("figure");
+  fig.className = "thumb-tile";
+
+  // The library's own markup links each design to /designs/{id}; the
+  // product-specific URLs used elsewhere in this dashboard are derived from
+  // what a design has sold, which by definition is nothing here.
+  const link = document.createElement("a");
+  link.href = `https://www.spoonflower.com/designs/${encodeURIComponent(design.designId)}`;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+
+  if (design.thumbnailUrl) {
+    link.appendChild(buildThumbnailEl(design.thumbnailUrl, design.name, "thumb-tile-img"));
+  } else {
+    const placeholder = document.createElement("span");
+    placeholder.className = "thumb-tile-img thumb-tile-img--empty";
+    link.appendChild(placeholder);
+  }
+
+  const caption = document.createElement("figcaption");
+  caption.textContent = design.name || design.designId; // scraped design name — textContent only
+  caption.title = design.name || design.designId;
+  link.appendChild(caption);
+
+  fig.appendChild(link);
+  if (!design.tags || design.tags.length === 0) {
+    // Worth flagging right here: an untagged design is close to unfindable
+    // in Spoonflower's search, which is the cheapest explanation for why it
+    // never sold and the cheapest thing to fix.
+    const flag = document.createElement("span");
+    flag.className = "thumb-tile-flag";
+    flag.textContent = "no tags";
+    fig.appendChild(flag);
+  }
+  return fig;
+}
+
+function renderNeverSold(records) {
+  const card = document.getElementById("never-sold-card");
+  const data = buildNeverSold(records);
+  if (!data || data.total === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const pct = Math.round((data.neverSold.length / data.total) * 100);
+  document.getElementById("never-sold-caption").textContent =
+    data.neverSold.length === 0
+      ? `Every one of your ${data.total} designs listed for sale has sold at least once.`
+      : `${data.neverSold.length} of ${data.total} designs listed for sale (${pct}%) have never had a single sale.`;
+
+  const bucketsEl = document.getElementById("never-sold-buckets");
+  if (data.buckets) {
+    bucketsEl.hidden = false;
+    renderBarChart(
+      bucketsEl,
+      data.buckets.map((b) => ({
+        label: b.label,
+        value: b.rate * 100,
+        valueLabel: `${Math.round(b.rate * 100)}% · ${b.unsold}/${b.size}`
+      }))
+    );
+  } else {
+    bucketsEl.hidden = true;
+  }
+
+  const toggle = document.getElementById("never-sold-toggle");
+  const grid = document.getElementById("never-sold-grid");
+  grid.replaceChildren();
+  if (data.neverSold.length === 0) {
+    toggle.hidden = true;
+    grid.hidden = true;
+  } else {
+    // Shown collapsed by default: a catalogue with hundreds of unsold
+    // designs would otherwise bury every card below this one.
+    toggle.hidden = false;
+    toggle.setAttribute("aria-expanded", "false");
+    // Only claim an order when there is one — without libraryIndex the list
+    // is in whatever order the store returned it, and the note below says so.
+    toggle.textContent = data.hasOrder
+      ? `▸ Show all ${data.neverSold.length}, oldest first`
+      : `▸ Show all ${data.neverSold.length}`;
+    grid.hidden = true;
+    data.neverSold.forEach((d) => grid.appendChild(buildNeverSoldTile(d)));
+  }
+
+  const notes = [];
+  if (data.notForSale > 0) {
+    notes.push(
+      `${data.notForSale} design${data.notForSale === 1 ? "" : "s"} not listed for sale ${
+        data.notForSale === 1 ? "is" : "are"
+      } excluded — those can't sell, so counting them here would only inflate the number.`
+    );
+  }
+  if (!data.hasOrder) {
+    notes.push(
+      "Upload order isn't stored for these designs yet, so the age breakdown is hidden and the list below is unordered — run Sync Design Tags again to record it."
+    );
+  }
+  const noteEl = document.getElementById("never-sold-note");
+  noteEl.textContent = notes.join(" ");
+  noteEl.hidden = notes.length === 0;
 }
 
 // ---------- Keyword trends (small multiples) ----------
@@ -2165,12 +2352,14 @@ async function init() {
   ]);
   tagsByDesignId = new Map(designTags.map((d) => [d.designId, d.tags || []]));
   thumbnailsByDesignId = new Map(designTags.filter((d) => d.thumbnailUrl).map((d) => [d.designId, d.thumbnailUrl]));
+  designMetaById = new Map(designTags.map((d) => [d.designId, d]));
   buyerNotesByBuyer = new Map(buyerNotes.map((n) => [n.buyer, n]));
   renderPayoutsTable(yearlySummaries);
 
   designRollups = buildDesignRollups(allRecords);
   renderNewDesignPerformance(allRecords);
   renderSwatchConversion(allRecords);
+  renderNeverSold(allRecords);
 
   document.getElementById("sync-status").textContent = lastSyncAt
     ? `Last synced ${new Date(lastSyncAt).toLocaleString()} · ${allRecords.length.toLocaleString()} transactions`
@@ -2285,6 +2474,15 @@ async function init() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !document.getElementById("design-detail-modal").hidden) closeDesignDetail();
+  });
+
+  document.getElementById("never-sold-toggle").addEventListener("click", () => {
+    const btn = document.getElementById("never-sold-toggle");
+    const grid = document.getElementById("never-sold-grid");
+    const expanded = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", String(!expanded));
+    grid.hidden = expanded;
+    btn.textContent = `${expanded ? "▸" : "▾"} ${btn.textContent.slice(2)}`;
   });
 
   document.getElementById("untagged-toggle").addEventListener("click", () => {

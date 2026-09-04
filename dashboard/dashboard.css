@@ -1015,3 +1015,75 @@ svg.chart-svg {
     align-items: stretch;
   }
 }
+
+/* ---------- Never-sold design grid ---------- */
+/* A grid of pictures rather than a list of names: the point of this card is
+   deciding which unsold designs to rework, and that judgement is made by
+   looking at them. Tiles are wide enough to recognise a pattern at a glance;
+   hovering one still opens the shared large preview. */
+.thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+/* [hidden] sets display:none at the same specificity as the rule above, so
+   without this the grid never actually collapses. */
+.thumb-grid[hidden] {
+  display: none;
+}
+.thumb-tile {
+  position: relative;
+  margin: 0;
+  min-width: 0;
+}
+.thumb-tile a {
+  display: block;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.thumb-tile a:hover figcaption,
+.thumb-tile a:focus-visible figcaption {
+  color: var(--series-1);
+  text-decoration: underline;
+}
+.thumb-tile-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--gridline);
+}
+.thumb-tile-img--empty {
+  /* A design whose thumbnail URL is missing or failed to load still keeps
+     its slot, so the grid doesn't reflow into a ragged shape. */
+  background: repeating-linear-gradient(45deg, var(--gridline), var(--gridline) 6px, var(--page) 6px, var(--page) 12px);
+}
+.thumb-tile figcaption {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  /* Two lines, then ellipsis — design names run long, and letting them wrap
+     freely would make neighbouring tiles sit at different heights. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.thumb-tile-flag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--critical);
+}
+#never-sold-note {
+  margin-top: 14px;
+}

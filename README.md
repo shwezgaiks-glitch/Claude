@@ -43,7 +43,9 @@ back in one response.
   - **Sync Design Tags** — fetches your design library
     (`/designs?...&look=batch&...`) page by page (72 designs per page,
     stops once a page comes back empty) and pulls each design's tags,
-    status, full name, and thumbnail URL from the batch-edit markup.
+    status, full name, and thumbnail URL from the batch-edit markup, plus
+    its position in the library's own newest-first ordering (see the
+    Never-sold card below for why that position matters).
     Powers the dashboard's "Revenue by tag" breakdown and its design
     thumbnails — not a transaction source, just metadata joined against
     designId. The thumbnail costs no extra request: its URL is already in
@@ -67,7 +69,7 @@ back in one response.
   period-over-period delta, top designs (linked to their Spoonflower
   product pages), revenue by category and by substrate (wallpaper/fabric
   types, each with a $/unit average), revenue by tag, keyword trends,
-  design families, swatch conversion, new design
+  design families, swatch conversion, never-sold designs, new design
   performance (how much of a design's revenue arrives in its first
   30/60/90 days), returns (a date-scoped summary alongside an all-time
   return-rate-by-design table), official payout figures, a
@@ -104,6 +106,29 @@ back in one response.
   **Swatch conversion** tracks how often a buyer who ordered a swatch came
   back later for a full-size order of the same design — signed-in buyers
   only, since guest swatches can't be tied to a later guest order.
+
+  A fourth, **Never sold**, answers a question the sales data can't reach
+  on its own: a design that never sold appears in no transaction, so it's
+  invisible everywhere else in the dashboard — the full catalogue only
+  exists in the synced design library. The card shows what share of your
+  listed designs have never had a single sale, broken down by how long ago
+  they were uploaded, then lists them as a grid of thumbnails, oldest
+  first, flagging any that also have no tags.
+
+  On "how long ago": Spoonflower's design library carries no upload date
+  anywhere in its markup, so age here is a *rank*, not a date. The library
+  is fetched with `sort=newest`, and each design's position in that order
+  is stored at sync time; designs are then split into four equal groups by
+  upload order. That supports "this is among your oldest designs" and
+  deliberately never claims "this is 14 months old". Read the bars as a
+  gradient: a high never-sold rate in the newest quarter is ordinary,
+  since those designs have barely had time; a high rate in the *oldest*
+  quarter is the actionable one. Designs not listed for sale are excluded
+  (they can't sell), and designs missing from the most recent sync are
+  dropped, so a design you deleted on Spoonflower doesn't linger here
+  reporting itself as unsold forever. Data synced before this existed has
+  no stored ordering — the card still lists the unsold designs and prompts
+  you to re-run Sync Design Tags to get the age breakdown.
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)

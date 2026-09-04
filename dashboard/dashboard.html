@@ -116,6 +116,23 @@
           </p>
           <div id="design-families-list"></div>
         </section>
+        <section class="chart-card" id="never-sold-card" hidden>
+          <h3>Never sold</h3>
+          <span class="scope-badge">all-time</span>
+          <p class="muted" id="never-sold-caption"></p>
+          <p class="muted">
+            Spoonflower's design library shows no upload date anywhere, so age here is your library's own
+            <em>newest-first</em> ordering rather than a real date: designs are split into four equal groups by
+            upload order, and each bar is the share of that group that has never had a single sale. A high bar in
+            the newest quarter is ordinary — those designs have barely had time. A high bar in the oldest quarter
+            is the one worth acting on: those have had years and still haven't sold, so they're the candidates for
+            re-tagging, renaming, or new mockups.
+          </p>
+          <div id="never-sold-buckets" class="chart-container"></div>
+          <button type="button" id="never-sold-toggle" class="row-toggle" aria-expanded="false"></button>
+          <div id="never-sold-grid" class="thumb-grid" hidden></div>
+          <p class="muted" id="never-sold-note"></p>
+        </section>
         <section class="chart-card" id="new-design-performance-card" hidden>
           <h3>New design performance</h3>
           <span class="scope-badge">all-time</span>
