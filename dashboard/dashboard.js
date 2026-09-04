@@ -690,8 +690,7 @@ function renderAll() {
   renderSubstrateBreakdown(document.getElementById("wallpaper-types-chart"), earnings, "Wallpaper");
   renderSubstrateBreakdown(document.getElementById("fabric-types-chart"), earnings, "Fabric");
 
-  renderTagRevenue(earnings);
-  renderKeywordTrends(earnings);
+  renderKeywords(earnings);
   renderTagGroups(earnings);
   renderCustomers(earnings);
   renderReturnsCard(scoped);
@@ -1053,16 +1052,23 @@ function wordsForDesign(designId) {
   return words;
 }
 
-function renderTagRevenue(earnings) {
-  const card = document.getElementById("tags-card");
+// One card, one pass. A ranked bar chart of keyword totals alongside a grid
+// of per-keyword sparklines showed the same words in the same order twice —
+// and since each sparkline panel already states its keyword's total, the bar
+// chart was carrying only two things the panels lacked: the design count and
+// click-to-drill. Both now live on the panels, so the bars are gone.
+function renderKeywords(earnings) {
+  const card = document.getElementById("keywords-card");
   if (tagsByDesignId.size === 0) {
     card.hidden = true;
     return;
   }
-  card.hidden = false;
+
+  const months = Array.from(new Set(earnings.map((r) => (r.date || "").slice(0, 7)).filter(Boolean))).sort();
+  const monthIndex = new Map(months.map((m, i) => [m, i]));
 
   const wordsByDesignId = new Map();
-  const byTag = new Map();
+  const byWord = new Map();
   const untaggedByDesignId = new Map();
   earnings.forEach((r) => {
     if (!r.designId) return;
@@ -1084,25 +1090,74 @@ function renderTagRevenue(earnings) {
       untaggedByDesignId.set(r.designId, prev);
       return;
     }
+    const idx = r.date ? monthIndex.get(r.date.slice(0, 7)) : undefined;
     words.forEach((word) => {
-      const prev = byTag.get(word) || { label: word, value: 0, designIds: new Set() };
-      prev.value += r.amount;
-      prev.designIds.add(r.designId);
-      byTag.set(word, prev);
+      let entry = byWord.get(word);
+      if (!entry) {
+        entry = { word, total: 0, designIds: new Set(), series: new Array(months.length).fill(0) };
+        byWord.set(word, entry);
+      }
+      entry.total += r.amount;
+      entry.designIds.add(r.designId);
+      if (idx !== undefined) entry.series[idx] += r.amount;
     });
   });
 
-  const items = Array.from(byTag.values())
-    .sort((a, b) => b.designIds.size - a.designIds.size || b.value - a.value)
-    .slice(0, 20)
-    .map((t) => ({
-      label: t.label,
-      value: t.value,
-      valueLabel: `${formatCurrency(t.value)} · ${t.designIds.size} design${t.designIds.size === 1 ? "" : "s"}`,
-      onClick: () => applyDrillFilter({ label: `word "${t.label}"`, designIds: t.designIds })
-    }));
-  renderBarChart(document.getElementById("tags-chart"), items);
+  // Breadth across the catalogue first, then revenue: a word carried by many
+  // designs says more than one big seller's private vocabulary.
+  const words = Array.from(byWord.values())
+    .sort((a, b) => b.designIds.size - a.designIds.size || b.total - a.total)
+    .slice(0, 12);
+
+  if (words.length === 0) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  renderKeywordPanels(words, months);
   renderUntaggedDesigns(Array.from(untaggedByDesignId.values()));
+}
+
+function renderKeywordPanels(words, months) {
+  const caption = document.getElementById("keywords-trend-caption");
+  const grid = document.getElementById("keywords-grid");
+  const sharedMax = niceCeil(Math.max(...words.flatMap((w) => w.series), 1));
+
+  caption.textContent =
+    months.length >= 2
+      ? `Sparklines show monthly revenue from ${monthLabel(months[0])} to ${monthLabel(months[months.length - 1])}, ` +
+        `all sharing one vertical scale (0 to ${formatCompactCurrency(sharedMax)}) so their heights are directly comparable.`
+      : "Not enough months in this range to plot a trend — the totals below still apply.";
+
+  grid.replaceChildren();
+  words.forEach((w) => {
+    const cell = document.createElement("div");
+    cell.className = "spark-cell";
+
+    const name = document.createElement("button");
+    name.type = "button";
+    name.className = "spark-word";
+    name.textContent = w.word; // scraped tag text — textContent only
+    name.title = "Filter the transaction table to designs carrying this word";
+    name.addEventListener("click", () => applyDrillFilter({ label: `word "${w.word}"`, designIds: w.designIds }));
+
+    const value = document.createElement("div");
+    value.className = "spark-value";
+    const restingText = `${formatCurrency(w.total)} · ${w.designIds.size} design${w.designIds.size === 1 ? "" : "s"}`;
+    value.textContent = restingText;
+
+    cell.append(name, value);
+
+    if (months.length >= 2) {
+      const plot = document.createElement("div");
+      plot.className = "spark-plot";
+      renderSparkline(plot, w.series, months, sharedMax, (month, amount) => {
+        value.textContent = month ? `${monthLabel(month)} · ${formatCurrency(amount)}` : restingText;
+      });
+      cell.appendChild(plot);
+    }
+    grid.appendChild(cell);
+  });
 }
 
 // A design with no tags synced (or genuinely none set on Spoonflower)
@@ -1137,49 +1192,12 @@ function renderUntaggedDesigns(items) {
 }
 
 // ---------- Keyword trends (small multiples) ----------
-// Deliberately not one chart with a line per keyword: a dozen overlapping
-// series in a shared frame is unreadable (and the top keywords all sit
-// within a narrow band, so the lines knot together). One small panel per
-// keyword, all sharing the same x-domain AND the same y-max, keeps the
-// panels honestly comparable — a keyword whose line stays low really is
-// smaller, rather than being rescaled to look busy.
-
-function buildKeywordTrends(earnings, limit) {
-  const months = Array.from(new Set(earnings.map((r) => (r.date || "").slice(0, 7)).filter(Boolean))).sort();
-  if (months.length === 0) return { months: [], words: [] };
-  const monthIndex = new Map(months.map((m, i) => [m, i]));
-
-  const wordsCache = new Map();
-  const byWord = new Map();
-  earnings.forEach((r) => {
-    if (!r.designId || !r.date) return;
-    let words = wordsCache.get(r.designId);
-    if (!words) {
-      words = wordsForDesign(r.designId);
-      wordsCache.set(r.designId, words);
-    }
-    const idx = monthIndex.get(r.date.slice(0, 7));
-    if (idx === undefined) return;
-    words.forEach((word) => {
-      let entry = byWord.get(word);
-      if (!entry) {
-        entry = { word, total: 0, designIds: new Set(), series: new Array(months.length).fill(0) };
-        byWord.set(word, entry);
-      }
-      entry.total += r.amount;
-      entry.designIds.add(r.designId);
-      entry.series[idx] += r.amount;
-    });
-  });
-
-  // Same ordering as Revenue by tag (breadth across the catalogue first,
-  // then revenue) so the two cards show the same keywords in the same
-  // order rather than two differently-ranked lists of the same thing.
-  const words = Array.from(byWord.values())
-    .sort((a, b) => b.designIds.size - a.designIds.size || b.total - a.total)
-    .slice(0, limit);
-  return { months, words };
-}
+// Sparklines rather than one chart with a line per keyword: a dozen
+// overlapping series in a shared frame is unreadable, and the top keywords
+// all sit within a narrow band, so the lines knot together. One small panel
+// per keyword, all sharing the same x-domain AND the same y-max, keeps them
+// honestly comparable — a keyword whose line stays low really is smaller,
+// rather than being rescaled to look busy.
 
 function renderSparkline(container, series, months, sharedMax, onHover) {
   container.replaceChildren();
@@ -1226,52 +1244,6 @@ function renderSparkline(container, series, months, sharedMax, onHover) {
   });
 
   container.appendChild(svg);
-}
-
-function renderKeywordTrends(earnings) {
-  const card = document.getElementById("keyword-trends-card");
-  if (tagsByDesignId.size === 0) {
-    card.hidden = true;
-    return;
-  }
-  const { months, words } = buildKeywordTrends(earnings, 12);
-  if (words.length === 0 || months.length < 2) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
-
-  const sharedMax = niceCeil(Math.max(...words.flatMap((w) => w.series), 1));
-  document.getElementById("keyword-trends-caption").textContent =
-    `Monthly revenue per keyword, ${monthLabel(months[0])} to ${monthLabel(months[months.length - 1])}. ` +
-    `All panels share one vertical scale (0 to ${formatCompactCurrency(sharedMax)}), so their heights are directly comparable.`;
-
-  const grid = document.getElementById("keyword-trends-grid");
-  grid.replaceChildren();
-  words.forEach((w) => {
-    const cell = document.createElement("div");
-    cell.className = "spark-cell";
-
-    const head = document.createElement("div");
-    head.className = "spark-head";
-    const name = document.createElement("span");
-    name.className = "spark-word";
-    name.textContent = w.word; // scraped tag text — textContent only
-    const value = document.createElement("span");
-    value.className = "spark-value";
-    const totalText = formatCurrency(w.total);
-    value.textContent = totalText;
-    head.append(name, value);
-
-    const plot = document.createElement("div");
-    plot.className = "spark-plot";
-    renderSparkline(plot, w.series, months, sharedMax, (month, amount) => {
-      value.textContent = month ? `${monthLabel(month)} · ${formatCurrency(amount)}` : totalText;
-    });
-
-    cell.append(head, plot);
-    grid.appendChild(cell);
-  });
 }
 
 // ---------- Design families (grouped by shared tag words) ----------

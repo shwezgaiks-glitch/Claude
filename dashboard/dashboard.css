@@ -195,6 +195,17 @@ main {
   margin: 0 0 12px;
   font-weight: 600;
 }
+/* Sub-headings within a card (e.g. the category/substrate breakdowns that
+   make up the Products card), a step down from the card's own title. */
+.chart-card h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 16px 0 8px;
+}
+.chart-card h4:first-of-type {
+  margin-top: 0;
+}
 
 .chart-container {
   position: relative;
@@ -458,26 +469,34 @@ a.bar-label:focus-visible {
 .spark-cell {
   min-width: 0;
 }
-.spark-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 2px;
-}
 .spark-word {
+  display: block;
+  width: 100%;
+  font-family: inherit;
   font-size: 12px;
   font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
   color: var(--text-primary);
+  cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.spark-word:hover,
+.spark-word:focus-visible {
+  color: var(--series-1);
 }
 .spark-value {
   font-size: 11px;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
 }
 .spark-plot svg.sparkline {
   height: 48px;
