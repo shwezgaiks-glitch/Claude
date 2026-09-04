@@ -311,6 +311,13 @@ a.bar-label:focus-visible {
   text-align: left;
 }
 
+#untagged-toggle {
+  margin-top: 14px;
+}
+#untagged-list {
+  margin-top: 8px;
+}
+
 .buyer-detail-row td {
   background: var(--page);
   padding: 6px 10px 12px 28px;

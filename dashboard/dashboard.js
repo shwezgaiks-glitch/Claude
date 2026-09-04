@@ -692,6 +692,7 @@ function renderTagRevenue(earnings) {
 
   const wordsByDesignId = new Map();
   const byTag = new Map();
+  const untaggedByDesignId = new Map();
   earnings.forEach((r) => {
     if (!r.designId) return;
     let words = wordsByDesignId.get(r.designId);
@@ -699,7 +700,19 @@ function renderTagRevenue(earnings) {
       words = wordsForDesign(r.designId);
       wordsByDesignId.set(r.designId, words);
     }
-    if (words.size === 0) return;
+    if (words.size === 0) {
+      const prev = untaggedByDesignId.get(r.designId) || {
+        designId: r.designId,
+        name: r.designName || r.designId,
+        value: 0,
+        productTypeRevenue: new Map()
+      };
+      prev.value += r.amount;
+      const slug = classifyProductType(r.productRaw, r.productName, r.category);
+      prev.productTypeRevenue.set(slug, (prev.productTypeRevenue.get(slug) || 0) + r.amount);
+      untaggedByDesignId.set(r.designId, prev);
+      return;
+    }
     words.forEach((word) => {
       const prev = byTag.get(word) || { label: word, value: 0, designIds: new Set() };
       prev.value += r.amount;
@@ -717,6 +730,38 @@ function renderTagRevenue(earnings) {
       valueLabel: `${formatCurrency(t.value)} · ${t.designIds.size} design${t.designIds.size === 1 ? "" : "s"}`
     }));
   renderBarChart(document.getElementById("tags-chart"), items);
+  renderUntaggedDesigns(Array.from(untaggedByDesignId.values()));
+}
+
+// A design with no tags synced (or genuinely none set on Spoonflower)
+// contributes nothing to the word breakdown above and would otherwise just
+// silently vanish from the chart — surfaced here instead as a collapsed,
+// clickable list so it's clear those designs exist and aren't a data bug.
+function renderUntaggedDesigns(items) {
+  const toggle = document.getElementById("untagged-toggle");
+  const list = document.getElementById("untagged-list");
+  if (items.length === 0) {
+    toggle.hidden = true;
+    list.hidden = true;
+    return;
+  }
+  items.sort((a, b) => b.value - a.value);
+
+  toggle.hidden = false;
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.textContent = `▸ ${items.length} design${items.length === 1 ? "" : "s"} with no tags synced`;
+  list.hidden = true;
+
+  list.replaceChildren();
+  items.forEach((d) => {
+    const li = document.createElement("li");
+    li.appendChild(buildDesignLinkEl(d.designId, d.name, d.productTypeRevenue));
+    const value = document.createElement("span");
+    value.className = "num";
+    value.textContent = formatCurrency(d.value);
+    li.appendChild(value);
+    list.appendChild(li);
+  });
 }
 
 // "Substrate" is the specific material within a category — e.g. within
@@ -1064,6 +1109,15 @@ async function init() {
     btn.setAttribute("aria-expanded", String(!expanded));
     target.hidden = expanded;
     btn.textContent = (expanded ? "▸ " : "▾ ") + btn.dataset.buyer;
+  });
+
+  document.getElementById("untagged-toggle").addEventListener("click", () => {
+    const btn = document.getElementById("untagged-toggle");
+    const list = document.getElementById("untagged-list");
+    const expanded = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", String(!expanded));
+    list.hidden = expanded;
+    btn.textContent = (expanded ? "▸" : "▾") + btn.textContent.slice(1);
   });
 
   document.getElementById("table-search").addEventListener("input", (e) => {

@@ -86,9 +86,12 @@
           separately) so a design's own repeated keyword phrasing doesn't dominate the list without telling you
           much — sorted here by how many different designs share a word first, then by revenue, so words proven
           across your catalog surface above one design's own tag list. Revenue totals still run higher than your
-          overall revenue, since one design's sale counts toward each of its distinct words.
+          overall revenue, since one design's sale counts toward each of its distinct words. Designs with no tags
+          synced don't contribute any words above — see the list below instead.
         </p>
         <div id="tags-chart" class="chart-container"></div>
+        <button type="button" id="untagged-toggle" class="row-toggle" aria-expanded="false" hidden></button>
+        <ul id="untagged-list" class="buyer-design-list" hidden></ul>
       </section>
 
       <section class="chart-card" id="new-design-performance-card" hidden>
