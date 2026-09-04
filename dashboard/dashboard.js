@@ -403,6 +403,7 @@ let designRollups = new Map(); // designId -> all-time sale/return rollup, from 
 let currentDrillFilter = null; // { label: string, designIds: Set<string> } | null — set by clicking a chart bar
 let buyerNotesByBuyer = new Map(); // buyer -> { buyer, tags: string[], notes: string, updatedAt } — user-entered, never scraped
 let currentCustomerSearch = "";
+let customersRepeatOnly = false;
 
 function applyDrillFilter(filter) {
   currentDrillFilter = filter;
@@ -613,7 +614,6 @@ function renderAll() {
   renderSubstrateBreakdown(document.getElementById("fabric-types-chart"), earnings, "Fabric");
 
   renderTagRevenue(earnings);
-  renderRepeatBuyers(earnings);
   renderCustomers(earnings);
   renderReturnsCard(scoped);
   renderTable(scoped);
@@ -1035,60 +1035,6 @@ function buildBuyerDesignListEl(designsMap) {
   return designList;
 }
 
-function renderRepeatBuyers(earnings) {
-  const card = document.getElementById("repeat-buyers-card");
-  const repeats = buildBuyerSummaries(earnings)
-    .filter((b) => b.count >= 2)
-    .sort((a, b) => b.count - a.count || b.total - a.total)
-    .slice(0, 25);
-
-  if (repeats.length === 0) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
-
-  const tbody = document.getElementById("repeat-buyers-table-body");
-  tbody.replaceChildren();
-  repeats.forEach((b, i) => {
-    const detailId = `buyer-detail-${i}`;
-
-    const tr = document.createElement("tr");
-    const buyerTd = document.createElement("td");
-    const toggle = document.createElement("button");
-    toggle.type = "button";
-    toggle.className = "row-toggle";
-    toggle.setAttribute("aria-expanded", "false");
-    toggle.dataset.target = detailId;
-    toggle.dataset.buyer = b.buyer;
-    toggle.textContent = "▸ " + b.buyer;
-    buyerTd.appendChild(toggle);
-
-    const countTd = document.createElement("td");
-    countTd.className = "num";
-    countTd.textContent = b.count.toLocaleString();
-    const totalTd = document.createElement("td");
-    totalTd.className = "num";
-    totalTd.textContent = formatCurrency(b.total);
-    const firstTd = document.createElement("td");
-    firstTd.textContent = b.first || "";
-    const lastTd = document.createElement("td");
-    lastTd.textContent = b.last || "";
-    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd);
-    tbody.appendChild(tr);
-
-    const detailTr = document.createElement("tr");
-    detailTr.id = detailId;
-    detailTr.className = "buyer-detail-row";
-    detailTr.hidden = true;
-    const detailTd = document.createElement("td");
-    detailTd.colSpan = 5;
-    detailTd.appendChild(buildBuyerDesignListEl(b.designs));
-    detailTr.appendChild(detailTd);
-    tbody.appendChild(detailTr);
-  });
-}
-
 // ---------- Customers (tags & notes) ----------
 // User-entered labels/notes per buyer, stored locally only — never scraped,
 // never sent anywhere. Persists in the buyerNotes store, keyed by buyer
@@ -1164,7 +1110,19 @@ function renderCustomers(earnings) {
   }
   card.hidden = false;
 
-  let filtered = buyers;
+  // Headline stats over every signed-in buyer, regardless of the search or
+  // repeat-only filters below — those narrow the table, not the picture of
+  // the customer base as a whole.
+  const repeats = buyers.filter((b) => b.count >= 2);
+  const totalRevenue = buyers.reduce((s, b) => s + b.total, 0);
+  const repeatRevenue = repeats.reduce((s, b) => s + b.total, 0);
+  const repeatRevenuePct = totalRevenue > 0 ? (repeatRevenue / totalRevenue) * 100 : 0;
+  document.getElementById("customers-summary").textContent =
+    `${buyers.length.toLocaleString()} signed-in buyer${buyers.length === 1 ? "" : "s"} · ` +
+    `${repeats.length.toLocaleString()} returning · ` +
+    `${repeatRevenuePct.toFixed(0)}% of signed-in revenue from repeat buyers`;
+
+  let filtered = customersRepeatOnly ? repeats : buyers;
   if (currentCustomerSearch) {
     filtered = filtered.filter((b) => {
       if (b.buyer.toLowerCase().includes(currentCustomerSearch)) return true;
@@ -1174,7 +1132,11 @@ function renderCustomers(earnings) {
       return (note.tags || []).some((t) => t.toLowerCase().includes(currentCustomerSearch));
     });
   }
-  filtered = filtered.slice().sort((a, b) => b.total - a.total);
+  // Repeat-only view leads with who buys most often (what the old separate
+  // Repeat Buyers card was for); the full list leads with who spends most.
+  filtered = customersRepeatOnly
+    ? filtered.slice().sort((a, b) => b.count - a.count || b.total - a.total)
+    : filtered.slice().sort((a, b) => b.total - a.total);
 
   const MAX_ROWS = 200;
   const shown = filtered.slice(0, MAX_ROWS);
@@ -1244,11 +1206,12 @@ function renderCustomers(earnings) {
     tbody.appendChild(detailTr);
   });
 
+  const noun = customersRepeatOnly ? "repeat buyer" : "customer";
   const countEl = document.getElementById("customers-count");
   countEl.textContent =
     filtered.length > MAX_ROWS
-      ? `Showing ${MAX_ROWS} of ${filtered.length.toLocaleString()} customers — search to narrow`
-      : `${filtered.length.toLocaleString()} customer${filtered.length === 1 ? "" : "s"}`;
+      ? `Showing ${MAX_ROWS} of ${filtered.length.toLocaleString()} ${noun}s — search to narrow`
+      : `${filtered.length.toLocaleString()} ${noun}${filtered.length === 1 ? "" : "s"}`;
 }
 
 // Merged card: the date-scoped summary line (how many/how much this period)
@@ -1475,22 +1438,9 @@ async function init() {
     btn.addEventListener("click", () => applyRange(btn.dataset.range));
   });
 
-  // Delegated once here rather than re-bound per row, since
-  // renderRepeatBuyers replaces the tbody's contents on every re-render.
-  document.getElementById("repeat-buyers-table").addEventListener("click", (e) => {
-    const btn = e.target.closest(".row-toggle");
-    if (!btn) return;
-    const target = document.getElementById(btn.dataset.target);
-    if (!target) return;
-    const expanded = btn.getAttribute("aria-expanded") === "true";
-    btn.setAttribute("aria-expanded", String(!expanded));
-    target.hidden = expanded;
-    btn.textContent = (expanded ? "▸ " : "▾ ") + btn.dataset.buyer;
-  });
-
-  // Customers table: row expand/collapse (same pattern as Repeat Buyers),
-  // plus tag removal — both delegated since tbody is rebuilt on every
-  // re-render.
+  // Customers table: row expand/collapse plus tag removal — both delegated
+  // once here rather than re-bound per row, since the tbody is rebuilt on
+  // every re-render.
   document.getElementById("customers-table").addEventListener("click", async (e) => {
     const toggleBtn = e.target.closest(".row-toggle");
     if (toggleBtn) {
@@ -1530,6 +1480,12 @@ async function init() {
 
   document.getElementById("customer-search").addEventListener("input", (e) => {
     currentCustomerSearch = e.target.value.toLowerCase();
+    renderAll();
+  });
+
+  document.getElementById("customers-repeat-toggle").addEventListener("click", (e) => {
+    customersRepeatOnly = !customersRepeatOnly;
+    e.currentTarget.setAttribute("aria-pressed", String(customersRepeatOnly));
     renderAll();
   });
 

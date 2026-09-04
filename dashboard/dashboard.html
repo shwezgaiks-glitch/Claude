@@ -100,30 +100,20 @@
         <div class="stat-tiles stat-tiles--3col" id="new-design-performance-tiles"></div>
       </section>
 
-      <section class="chart-card" id="repeat-buyers-card" hidden>
-        <h2>Repeat buyers</h2>
-        <table id="repeat-buyers-table">
-          <thead>
-            <tr>
-              <th>Buyer</th>
-              <th class="num">Purchases</th>
-              <th class="num">Total spent</th>
-              <th>First purchase</th>
-              <th>Last purchase</th>
-            </tr>
-          </thead>
-          <tbody id="repeat-buyers-table-body"></tbody>
-        </table>
-      </section>
-
       <section class="chart-card" id="customers-card" hidden>
         <div class="table-header">
           <h2>Customers</h2>
-          <input id="customer-search" type="search" placeholder="Search by name, tag, or note…" />
+          <div class="table-header-controls">
+            <button type="button" id="customers-repeat-toggle" class="filter-btn" aria-pressed="false">
+              Repeat buyers only
+            </button>
+            <input id="customer-search" type="search" placeholder="Search by name, tag, or note…" />
+          </div>
         </div>
+        <p id="customers-summary" class="muted"></p>
         <p class="muted">
           Add your own tags or notes to any signed-in buyer — stored only in this browser, never sent anywhere.
-          Click a name to expand.
+          Click a name to expand. Guest checkouts are anonymized by Spoonflower and can't be listed here.
         </p>
         <div class="table-scroll">
           <table id="customers-table">

@@ -55,8 +55,7 @@ back in one response.
   product pages), revenue by category and by substrate (wallpaper/fabric
   types, each with a $/unit average), revenue by tag, new design
   performance (how much of a design's revenue arrives in its first
-  30/60/90 days), repeat buyers (with a per-buyer design breakdown),
-  returns (a date-scoped summary alongside an all-time
+  30/60/90 days), returns (a date-scoped summary alongside an all-time
   return-rate-by-design table), official payout figures, a
   searchable/sortable transaction table, and CSV export. Refund % and
   guest-checkout % surface as notes on the revenue and sales-count tiles.
@@ -66,9 +65,13 @@ back in one response.
   detail view for that design: lifetime net revenue, units, returns,
   a monthly revenue trend, and buyer-type/product breakdowns — all
   all-time, not scoped to the date filter. A **Customers** card lists
-  every signed-in buyer with your own free-text tags and private notes
-  attached (e.g. "interior designer", wholesale terms) — stored locally
-  only, searchable by name, tag, or note text.
+  every signed-in buyer with a per-buyer design breakdown plus your own
+  free-text tags and private notes attached (e.g. "interior designer",
+  wholesale terms) — stored locally only, searchable by name, tag, or note
+  text, with a "Repeat buyers only" toggle for the ones who came back and
+  a headline showing how much of your signed-in revenue they account for.
+  (Guest checkouts are anonymized by Spoonflower, so they can't appear
+  here at all.)
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)
@@ -114,8 +117,8 @@ back in one response.
 This version covers: revenue trend with period-over-period deltas,
 best/worst sellers, product-type (wallpaper/fabric) breakdown with $/unit
 pricing, revenue by tag, new design performance (30/60/90-day revenue
-share), returns (with an all-time return-rate-by-design breakdown),
-repeat buyers, a Customers card with user-editable tags/notes, a
+share), returns (with an all-time return-rate-by-design breakdown), a
+Customers card with user-editable tags/notes and a repeat-buyer filter, a
 per-design detail view (lifetime trend, buyer type and product mix),
 official payout figures, click-to-drill chart filtering, refund/guest-
 checkout stat notes, and CSV export. A natural next addition: design

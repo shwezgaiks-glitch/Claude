@@ -302,7 +302,15 @@ a.bar-label:focus-visible {
 .table-header h2 {
   margin: 0;
 }
-#table-search {
+.table-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+#table-search,
+#customer-search {
   font-family: inherit;
   font-size: 13px;
   padding: 6px 10px;
