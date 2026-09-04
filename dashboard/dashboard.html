@@ -81,11 +81,12 @@
       <section class="chart-card" id="tags-card" hidden>
         <h2>Revenue by tag</h2>
         <p class="muted">
-          Run <strong>Sync Design Tags</strong> on the Spoondollar history page to refresh this. A design's revenue
-          counts toward every tag it carries, so tags on a single big-selling design can otherwise dominate the list
-          without telling you much — sorted here by how many different designs share a tag first, then by revenue,
-          so tags proven across your catalog surface above one design's own tag list. Revenue totals still run
-          higher than your overall revenue, since one design's sale counts toward each of its tags.
+          Run <strong>Sync Design Tags</strong> on the Spoondollar history page to refresh this. Multi-word tags are
+          split into individual words (e.g. "vintage golf sport" counts toward "vintage", "golf", and "sport"
+          separately) so a design's own repeated keyword phrasing doesn't dominate the list without telling you
+          much — sorted here by how many different designs share a word first, then by revenue, so words proven
+          across your catalog surface above one design's own tag list. Revenue totals still run higher than your
+          overall revenue, since one design's sale counts toward each of its distinct words.
         </p>
         <div id="tags-chart" class="chart-container"></div>
       </section>

@@ -664,6 +664,24 @@ function renderNewDesignPerformance(records) {
 // tags proven across multiple designs surface first — and the design count
 // is shown alongside the dollar figure so a run of identical values reads
 // as "one design's tag list" rather than looking like a data error.
+// Tags are often multi-word phrases ("vintage golf sport", "golfing gift
+// for him") that are really just a few keywords on one design worded
+// several ways — treated as whole phrases, every one of a design's tags
+// shows the same dollar figure. Splitting each tag into its individual
+// words instead lets "golf" from one phrase merge with "golf" from
+// another, producing an actual per-keyword signal.
+function wordsForDesign(designId) {
+  const tags = tagsByDesignId.get(designId) || [];
+  const words = new Set();
+  tags.forEach((tag) => {
+    tag.split(/\s+/).forEach((word) => {
+      const normalized = word.trim().toLowerCase();
+      if (normalized) words.add(normalized);
+    });
+  });
+  return words;
+}
+
 function renderTagRevenue(earnings) {
   const card = document.getElementById("tags-card");
   if (tagsByDesignId.size === 0) {
@@ -672,16 +690,21 @@ function renderTagRevenue(earnings) {
   }
   card.hidden = false;
 
+  const wordsByDesignId = new Map();
   const byTag = new Map();
   earnings.forEach((r) => {
     if (!r.designId) return;
-    const tags = tagsByDesignId.get(r.designId);
-    if (!tags || tags.length === 0) return;
-    tags.forEach((tag) => {
-      const prev = byTag.get(tag) || { label: tag, value: 0, designIds: new Set() };
+    let words = wordsByDesignId.get(r.designId);
+    if (!words) {
+      words = wordsForDesign(r.designId);
+      wordsByDesignId.set(r.designId, words);
+    }
+    if (words.size === 0) return;
+    words.forEach((word) => {
+      const prev = byTag.get(word) || { label: word, value: 0, designIds: new Set() };
       prev.value += r.amount;
       prev.designIds.add(r.designId);
-      byTag.set(tag, prev);
+      byTag.set(word, prev);
     });
   });
 
