@@ -171,15 +171,18 @@ main {
 
 .page-section {
   /* Clears the sticky nav so a jumped-to heading isn't hidden under it. */
-  scroll-margin-top: 56px;
-  margin-bottom: 28px;
+  scroll-margin-top: 60px;
+  margin-bottom: 40px;
 }
 .section-heading {
-  font-size: 17px;
+  font-size: 18px;
   margin: 0;
+  letter-spacing: -0.01em;
 }
 .section-blurb {
-  margin: 2px 0 14px;
+  margin: 4px 0 16px;
+  max-width: 68ch; /* keeps the explanation to a readable measure */
+  line-height: 1.55;
 }
 
 /* Flags a card whose numbers deliberately ignore the date filter, so
@@ -211,10 +214,10 @@ main {
 .stat-tile {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
-
 .stat-tile .label {
   font-size: 12px;
   color: var(--text-secondary);
@@ -224,6 +227,7 @@ main {
   font-size: 24px;
   font-weight: 600;
   margin-top: 4px;
+  letter-spacing: -0.02em;
 }
 
 .stat-tile .delta {
@@ -247,15 +251,27 @@ main {
 .chart-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 18px 20px;
-  margin-bottom: 20px;
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.chart-card:hover {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+  border-color: var(--baseline);
 }
 
 .chart-card h3 {
-  font-size: 14px;
-  margin: 0 0 12px;
+  font-size: 15px;
+  margin: 0 0 4px;
   font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.chart-card h3 + .muted,
+.chart-card h3 + .scope-badge + .muted,
+.chart-card h3 + .card-headline {
+  margin-bottom: 14px;
 }
 /* Sub-headings within a card (e.g. the category/substrate breakdowns that
    make up the Products card), a step down from the card's own title. */
@@ -615,6 +631,74 @@ a.bar-label:focus-visible {
   color: var(--text-muted);
 }
 
+.customer-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.customer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.customer-field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.customer-field-open {
+  font-size: 11px;
+  color: var(--series-1);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.customer-field-open:hover,
+.customer-field-open:focus-visible {
+  text-decoration: underline;
+}
+.customer-field-input {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--page);
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.type-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 14px;
+}
+.type-chip-row[hidden] {
+  display: none;
+}
+.type-chip {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  color: var(--series-1);
+  background: var(--series-1-wash);
+  border: 1px solid var(--series-1);
+}
+.type-chip--untyped {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: var(--border);
+}
+
+.muted-cell {
+  color: var(--text-muted);
+}
+
 .customer-tags-row {
   display: flex;
   flex-wrap: wrap;
@@ -697,10 +781,13 @@ thead th {
   top: 0;
   background: var(--surface);
   text-align: left;
-  padding: 8px 10px;
-  color: var(--text-secondary);
+  padding: 9px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   font-weight: 600;
-  border-bottom: 1px solid var(--gridline);
+  border-bottom: 1px solid var(--baseline);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -709,9 +796,12 @@ td.num {
   text-align: right;
 }
 tbody td {
-  padding: 7px 10px;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--gridline);
   font-variant-numeric: tabular-nums;
+}
+tbody tr:last-child td {
+  border-bottom: none;
 }
 tbody tr:hover {
   background: var(--page);
@@ -833,5 +923,12 @@ svg.chart-svg {
   }
   .spark-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .customer-fields {
+    grid-template-columns: 1fr;
+  }
+  .table-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

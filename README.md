@@ -66,7 +66,9 @@ back in one response.
   performance (how much of a design's revenue arrives in its first
   30/60/90 days), returns (a date-scoped summary alongside an all-time
   return-rate-by-design table), official payout figures, a
-  searchable/sortable transaction table, and CSV export. Refund % and
+  searchable/sortable transaction table (every row, no cap; payouts and
+  returns hidden by default and labelled by type when shown), and CSV
+  export. Refund % and
   guest-checkout % surface as notes on the revenue and sales-count tiles.
   Clicking a bar in Top Designs or Revenue by Tag filters the transaction
   table to just that design's or tag's records (click the chip's × to
@@ -76,10 +78,13 @@ back in one response.
   all all-time, not scoped to the date filter. Once design tags are
   synced, Top Designs shows each design's thumbnail inline too. A **Customers** card lists
   every signed-in buyer with a per-buyer design breakdown plus your own
-  free-text tags and private notes attached (e.g. "interior designer",
-  wholesale terms) — stored locally only, searchable by name, tag, or note
-  text, with a "Repeat buyers only" toggle for the ones who came back and
-  a headline showing how much of your signed-in revenue they account for.
+  buyer type, Instagram handle, website, free-form tags and private notes
+  (e.g. "interior designer", wholesale terms) — stored locally only,
+  searchable by name, tag, or note text, with a "Repeat buyers only"
+  toggle for the ones who came back and a headline showing how much of
+  your signed-in revenue they account for, broken down by buyer type
+  (with an explicit "untyped" share, so a mix built from a handful of
+  labelled buyers can't read as fact).
   (Guest checkouts are anonymized by Spoonflower, so they can't appear
   here at all.)
 

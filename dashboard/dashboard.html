@@ -43,7 +43,7 @@
 
       <section class="page-section" id="sec-performance">
         <h2 class="section-heading">Performance</h2>
-        <p class="section-blurb muted">How the shop is doing overall.</p>
+        <p class="section-blurb muted">Your headline numbers, the trend behind them, and what Spoonflower actually paid out. Start here to see whether a period is up or down — the sections below are for working out why.</p>
         <section class="stat-tiles" id="stat-tiles"></section>
         <section class="chart-card">
           <h3>Revenue over time</h3>
@@ -90,7 +90,7 @@
 
       <section class="page-section" id="sec-designs">
         <h2 class="section-heading">Designs</h2>
-        <p class="section-blurb muted">Which designs earn, and what to make next.</p>
+        <p class="section-blurb muted">Which individual designs earn, which whole themes earn once colourways are grouped together, and how much of a design's money arrives in its first few months. Click any design's dollar value for its full history.</p>
         <section class="chart-card">
           <h3>Top designs by revenue</h3>
           <div id="top-designs-chart" class="chart-container"></div>
@@ -115,7 +115,7 @@
 
       <section class="page-section" id="sec-keywords">
         <h2 class="section-heading">Keywords</h2>
-        <p class="section-blurb muted">How your tags and descriptions are performing.</p>
+        <p class="section-blurb muted">Which words on your designs are actually doing the selling, and whether each one is climbing or fading. Use this to decide how to tag the next design — and to spot designs you never tagged at all.</p>
         <section class="chart-card" id="keywords-card" hidden>
           <p class="muted">
             Run <strong>Sync Design Tags</strong> on the Spoondollar history page to refresh this. Multi-word tags are
@@ -135,7 +135,7 @@
 
       <section class="page-section" id="sec-products">
         <h2 class="section-heading">Products &amp; pricing</h2>
-        <p class="section-blurb muted">Which formats, materials and price points sell.</p>
+        <p class="section-blurb muted">Which categories and materials sell, at what average price point, and whether the swatches people order turn into full-size purchases later. Useful for deciding what to offer rather than what to draw.</p>
         <section class="chart-card">
           <h3>Products</h3>
           <p class="muted">
@@ -183,7 +183,7 @@
 
       <section class="page-section" id="sec-buyers">
         <h2 class="section-heading">Buyers</h2>
-        <p class="section-blurb muted">Who is buying, and who comes back.</p>
+        <p class="section-blurb muted">Every signed-in buyer, who returns, and what share of revenue each type of customer accounts for. Add a buyer type, links and private notes to anyone worth remembering — all stored only in this browser.</p>
         <section class="chart-card" id="customers-card" hidden>
           <div class="table-header">
             <h3>Customers</h3>
@@ -198,6 +198,7 @@
             </div>
           </div>
           <p id="customers-summary" class="muted"></p>
+          <div id="buyer-type-mix" class="type-chip-row" hidden></div>
           <p class="muted">
             Add your own tags or notes to any signed-in buyer — stored only in this browser, never sent anywhere.
             Click a name to expand. Guest checkouts are anonymized by Spoonflower and can't be listed here.
@@ -222,11 +223,16 @@
 
       <section class="page-section" id="sec-data">
         <h2 class="section-heading">Data</h2>
-        <p class="section-blurb muted">Everything underneath, raw.</p>
+        <p class="section-blurb muted">Every synced row, searchable and sortable. Payouts and returns are hidden by default so the table reads as sales — switch them on to see the full ledger, with each row labelled by type.</p>
         <section class="chart-card">
           <div class="table-header">
             <h3>All transactions</h3>
-            <input id="table-search" type="search" placeholder="Filter by design name or product…" />
+            <div class="table-header-controls">
+              <button type="button" id="tx-show-all" class="filter-btn" aria-pressed="false">
+                Include payouts &amp; returns
+              </button>
+              <input id="table-search" type="search" placeholder="Filter by design name or product…" />
+            </div>
           </div>
           <div id="drill-filter-chip" class="filter-chip" hidden>
             <span id="drill-filter-label"></span>
@@ -241,6 +247,7 @@
                   <th data-sort="productName">Product</th>
                   <th data-sort="category">Category</th>
                   <th data-sort="buyer">Buyer</th>
+                  <th data-sort="type">Type</th>
                   <th data-sort="amount" class="num">Amount</th>
                 </tr>
               </thead>
@@ -252,6 +259,8 @@
       </section>
 
     </main>
+
+    <datalist id="buyer-types"></datalist>
 
     <div id="thumb-preview" hidden><img alt="" /></div>
 

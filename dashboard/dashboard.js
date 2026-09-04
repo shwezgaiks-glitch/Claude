@@ -466,6 +466,7 @@ let currentDrillFilter = null; // { label: string, designIds: Set<string> } | nu
 let buyerNotesByBuyer = new Map(); // buyer -> { buyer, tags: string[], notes: string, updatedAt } — user-entered, never scraped
 let currentCustomerSearch = "";
 let customersRepeatOnly = false;
+let showNonSaleRows = false;
 
 function applyDrillFilter(filter) {
   currentDrillFilter = filter;
@@ -1501,8 +1502,20 @@ function buildBuyerDesignListEl(designsMap) {
 // username, independent of the date filter (a note about a buyer doesn't
 // stop applying when you switch ranges).
 
+// Suggestions only — the field stays free text, since every shop's mix of
+// customer is different and a fixed list would just be wrong for someone.
+const BUYER_TYPE_SUGGESTIONS = [
+  "individual",
+  "interior designer",
+  "maker",
+  "event planner",
+  "small business",
+  "reseller",
+  "wholesale"
+];
+
 async function saveBuyerNote(buyer, patch) {
-  const existing = buyerNotesByBuyer.get(buyer) || { buyer, tags: [], notes: "" };
+  const existing = buyerNotesByBuyer.get(buyer) || { buyer, tags: [], notes: "", buyerType: "", instagram: "", website: "" };
   const updated = { ...existing, ...patch, buyer, updatedAt: new Date().toISOString() };
   buyerNotesByBuyer.set(buyer, updated);
   await putBuyerNote(updated);
@@ -1521,6 +1534,53 @@ async function removeBuyerTag(buyer, tag) {
   const existing = buyerNotesByBuyer.get(buyer);
   if (!existing) return;
   await saveBuyerNote(buyer, { tags: existing.tags.filter((t) => t !== tag) });
+}
+
+// Normalises whatever the seller types into a usable URL: "@handle",
+// "handle", or a full instagram.com URL all resolve to the profile, and a
+// bare domain gets an https:// so it isn't treated as a relative path.
+function buyerLinkUrl(field, value) {
+  const v = (value || "").trim();
+  if (!v) return null;
+  if (field === "instagram") {
+    if (/^https?:\/\//i.test(v)) return v;
+    return `https://instagram.com/${v.replace(/^@/, "")}`;
+  }
+  return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+}
+
+function buildCustomerField(buyer, field, label, value, placeholder, listId) {
+  const wrap = document.createElement("label");
+  wrap.className = "customer-field";
+
+  const labelRow = document.createElement("span");
+  labelRow.className = "customer-field-label";
+  labelRow.textContent = label;
+
+  // Only the link-bearing fields get a visit affordance, and only once
+  // there's something to visit.
+  const url = field === "buyerType" ? null : buyerLinkUrl(field, value);
+  if (url) {
+    const open = document.createElement("a");
+    open.href = url;
+    open.target = "_blank";
+    open.rel = "noopener noreferrer";
+    open.className = "customer-field-open";
+    open.textContent = "open ↗";
+    labelRow.appendChild(open);
+  }
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "customer-field-input";
+  input.placeholder = placeholder;
+  input.value = value; // user-entered — set as a property, never parsed as markup
+  input.dataset.buyer = buyer;
+  input.dataset.field = field;
+  if (listId) input.setAttribute("list", listId);
+
+  wrap.append(labelRow, input);
+  return wrap;
 }
 
 function renderCustomerTagChips(container, buyer) {
@@ -1544,10 +1604,13 @@ function renderCustomerTagChips(container, buyer) {
 }
 
 function updateCustomerRowTagsEl(el, buyer) {
-  const note = buyerNotesByBuyer.get(buyer);
-  const tags = (note && note.tags) || [];
-  el.hidden = tags.length === 0;
-  el.textContent = tags.length ? " " + tags.join(", ") : ""; // user-entered text — textContent only
+  const note = buyerNotesByBuyer.get(buyer) || {};
+  // Buyer type leads (it's the classification), then any free-form tags.
+  const parts = [];
+  if ((note.buyerType || "").trim()) parts.push(note.buyerType.trim());
+  if (note.tags && note.tags.length) parts.push(...note.tags);
+  el.hidden = parts.length === 0;
+  el.textContent = parts.length ? " " + parts.join(" · ") : ""; // user-entered text — textContent only
 }
 
 // Patches the collapsed row's inline tag summary for one buyer in place,
@@ -1559,6 +1622,61 @@ function refreshCustomerRowTags(buyer) {
   if (rowTags && rowTags.classList.contains("customer-row-tags")) {
     updateCustomerRowTagsEl(rowTags, buyer);
   }
+}
+
+// Revenue share by the buyer types you've labelled. Untyped buyers get
+// their own slice rather than being dropped, so the percentages add up and
+// it stays obvious how much of the picture is still unlabelled — a mix
+// built from 10% of buyers would otherwise read as fact.
+function renderBuyerTypeMix(buyers, totalRevenue) {
+  const row = document.getElementById("buyer-type-mix");
+  if (totalRevenue <= 0) {
+    row.hidden = true;
+    return;
+  }
+
+  const byType = new Map();
+  buyers.forEach((b) => {
+    const type = ((buyerNotesByBuyer.get(b.buyer) || {}).buyerType || "").trim().toLowerCase() || "untyped";
+    byType.set(type, (byType.get(type) || 0) + b.total);
+  });
+  // Nothing labelled yet — a lone "untyped 100%" chip is just noise.
+  if (byType.size === 1 && byType.has("untyped")) {
+    row.hidden = true;
+    return;
+  }
+  row.hidden = false;
+
+  const items = Array.from(byType.entries()).sort((a, b) => {
+    if (a[0] === "untyped") return 1; // untyped sorts last whatever its size
+    if (b[0] === "untyped") return -1;
+    return b[1] - a[1];
+  });
+
+  // Largest-remainder rounding, so the chips sum to exactly 100%. Rounding
+  // each share independently gives things like "63% + 38%", which reads as
+  // an arithmetic bug even though both figures are individually right.
+  const exact = items.map(([, value]) => (value / totalRevenue) * 100);
+  const pcts = exact.map(Math.floor);
+  let leftover = 100 - pcts.reduce((s, v) => s + v, 0);
+  exact
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac)
+    .forEach(({ i }) => {
+      if (leftover > 0) {
+        pcts[i]++;
+        leftover--;
+      }
+    });
+
+  row.replaceChildren();
+  items.forEach(([type, value], i) => {
+    const chip = document.createElement("span");
+    chip.className = "type-chip" + (type === "untyped" ? " type-chip--untyped" : "");
+    chip.textContent = `${type} ${pcts[i]}%`; // user-entered — textContent only
+    chip.title = `${formatCurrency(value)} of signed-in revenue`;
+    row.appendChild(chip);
+  });
 }
 
 function renderCustomers(earnings) {
@@ -1581,6 +1699,7 @@ function renderCustomers(earnings) {
     `${buyers.length.toLocaleString()} signed-in buyer${buyers.length === 1 ? "" : "s"} · ` +
     `${repeats.length.toLocaleString()} returning · ` +
     `${repeatRevenuePct.toFixed(0)}% of signed-in revenue from repeat buyers`;
+  renderBuyerTypeMix(buyers, totalRevenue);
 
   let filtered = customersRepeatOnly ? repeats : buyers;
   if (currentCustomerSearch) {
@@ -1655,13 +1774,22 @@ function renderCustomers(earnings) {
     tagInput.dataset.buyer = b.buyer;
     tagsRow.append(chipList, tagInput);
 
+    const note = buyerNotesByBuyer.get(b.buyer) || {};
+    const fields = document.createElement("div");
+    fields.className = "customer-fields";
+    fields.append(
+      buildCustomerField(b.buyer, "buyerType", "Buyer type", note.buyerType || "", "e.g. interior designer", "buyer-types"),
+      buildCustomerField(b.buyer, "instagram", "Instagram", note.instagram || "", "@handle"),
+      buildCustomerField(b.buyer, "website", "Website", note.website || "", "example.com")
+    );
+
     const notesArea = document.createElement("textarea");
     notesArea.className = "customer-notes";
     notesArea.placeholder = "Private notes about this buyer — wholesale terms, custom requests, anything worth remembering.";
     notesArea.dataset.buyer = b.buyer;
-    notesArea.value = (buyerNotesByBuyer.get(b.buyer) || {}).notes || "";
+    notesArea.value = note.notes || "";
 
-    detailTd.append(tagsRow, notesArea, buildBuyerDesignListEl(b.designs));
+    detailTd.append(fields, tagsRow, notesArea, buildBuyerDesignListEl(b.designs));
     detailTr.appendChild(detailTd);
     tbody.appendChild(detailTr);
   });
@@ -1724,8 +1852,15 @@ function renderReturnsCard(scopedRecords) {
   });
 }
 
+const TYPE_LABELS = { sale: "Sale", fill_a_yard: "Fill-a-yard", return: "Return", payout: "Payout" };
+
 function renderTable(scopedRecords) {
-  let rows = scopedRecords.filter((r) => r.type !== "payout" && r.type !== "return");
+  // Whitelist rather than blacklist: a payout row whose Type column
+  // Spoonflower spelled differently used to slip through a "not payout, not
+  // return" filter and read as a negative sale with no design. Anything that
+  // isn't money you earned is now opt-in via the toggle, and labelled by
+  // type when shown.
+  let rows = showNonSaleRows ? scopedRecords.slice() : scopedRecords.filter(isEarningRecord);
 
   const chip = document.getElementById("drill-filter-chip");
   if (currentDrillFilter) {
@@ -1748,11 +1883,9 @@ function renderTable(scopedRecords) {
     return currentSort.dir === "asc" ? cmp : -cmp;
   });
 
-  const MAX_ROWS = 500;
-  const shown = rows.slice(0, MAX_ROWS);
   const tbody = document.getElementById("tx-table-body");
   tbody.replaceChildren();
-  shown.forEach((r) => {
+  rows.forEach((r) => {
     const tr = document.createElement("tr");
 
     const dateTd = document.createElement("td");
@@ -1778,19 +1911,20 @@ function renderTable(scopedRecords) {
     categoryTd.textContent = r.category || "";
     const buyerTd = document.createElement("td");
     buyerTd.textContent = r.buyer || "guest";
+    const typeTd = document.createElement("td");
+    typeTd.textContent = TYPE_LABELS[r.type] || r.type || "—";
+    if (!isEarningRecord(r)) typeTd.classList.add("muted-cell");
     const amountTd = document.createElement("td");
     amountTd.className = "num";
     amountTd.textContent = formatCurrency(r.amount);
 
-    tr.append(dateTd, designTd, productTd, categoryTd, buyerTd, amountTd);
+    tr.append(dateTd, designTd, productTd, categoryTd, buyerTd, typeTd, amountTd);
     tbody.appendChild(tr);
   });
 
-  const countEl = document.getElementById("table-count");
-  countEl.textContent =
-    rows.length > MAX_ROWS
-      ? `Showing ${MAX_ROWS} of ${rows.length.toLocaleString()} transactions — search or narrow the date range to see more`
-      : `${rows.length.toLocaleString()} transactions`;
+  document.getElementById("table-count").textContent =
+    `${rows.length.toLocaleString()} row${rows.length === 1 ? "" : "s"}` +
+    (showNonSaleRows ? " (including payouts and returns)" : "");
 }
 
 // ---------- Payouts (Spoonflower's official per-year figures) ----------
@@ -1865,7 +1999,14 @@ function exportBuyerNotes() {
   const buyers = Array.from(buyerNotesByBuyer.values())
     // Skip records emptied out by removing every tag and clearing the note —
     // they carry nothing worth restoring.
-    .filter((n) => (n.tags && n.tags.length) || (n.notes || "").trim())
+    .filter(
+      (n) =>
+        (n.tags && n.tags.length) ||
+        (n.notes || "").trim() ||
+        (n.buyerType || "").trim() ||
+        (n.instagram || "").trim() ||
+        (n.website || "").trim()
+    )
     .sort((a, b) => a.buyer.localeCompare(b.buyer));
 
   if (buyers.length === 0) {
@@ -1913,6 +2054,9 @@ function parseBuyerNotesFile(text) {
       buyer: entry.buyer,
       tags,
       notes: typeof entry.notes === "string" ? entry.notes : "",
+      buyerType: typeof entry.buyerType === "string" ? entry.buyerType : "",
+      instagram: typeof entry.instagram === "string" ? entry.instagram : "",
+      website: typeof entry.website === "string" ? entry.website : "",
       updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : new Date().toISOString()
     });
   });
@@ -2037,14 +2181,33 @@ async function init() {
   });
 
   // focusout (not blur) so it bubbles and can be delegated on the table.
-  document.getElementById("customers-table").addEventListener("focusout", (e) => {
-    if (!e.target.classList.contains("customer-notes")) return;
-    saveBuyerNote(e.target.dataset.buyer, { notes: e.target.value });
+  document.getElementById("customers-table").addEventListener("focusout", async (e) => {
+    if (e.target.classList.contains("customer-notes")) {
+      saveBuyerNote(e.target.dataset.buyer, { notes: e.target.value });
+      return;
+    }
+    if (e.target.classList.contains("customer-field-input")) {
+      const { buyer, field } = e.target.dataset;
+      const previous = (buyerNotesByBuyer.get(buyer) || {})[field] || "";
+      if (previous === e.target.value) return;
+      await saveBuyerNote(buyer, { [field]: e.target.value });
+      // Buyer type feeds the mix summary and the row label, and the link
+      // fields gain/lose their "open" affordance, so this one does need a
+      // re-render rather than an in-place patch.
+      renderAll();
+    }
   });
 
   document.getElementById("customer-search").addEventListener("input", (e) => {
     currentCustomerSearch = e.target.value.toLowerCase();
     renderAll();
+  });
+
+  const buyerTypeList = document.getElementById("buyer-types");
+  BUYER_TYPE_SUGGESTIONS.forEach((t) => {
+    const opt = document.createElement("option");
+    opt.value = t;
+    buyerTypeList.appendChild(opt);
   });
 
   document.getElementById("buyer-notes-export").addEventListener("click", exportBuyerNotes);
@@ -2083,6 +2246,12 @@ async function init() {
 
   document.getElementById("drill-filter-clear").addEventListener("click", () => {
     currentDrillFilter = null;
+    renderAll();
+  });
+
+  document.getElementById("tx-show-all").addEventListener("click", (e) => {
+    showNonSaleRows = !showNonSaleRows;
+    e.currentTarget.setAttribute("aria-pressed", String(showNonSaleRows));
     renderAll();
   });
 
