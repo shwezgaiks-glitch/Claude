@@ -613,8 +613,8 @@ function renderAll() {
   renderSubstrateBreakdown(document.getElementById("fabric-types-chart"), earnings, "Fabric");
 
   renderTagRevenue(earnings);
-  renderRepeatBuyers(scoped);
-  renderCustomers(scoped);
+  renderRepeatBuyers(earnings);
+  renderCustomers(earnings);
   renderReturnsCard(scoped);
   renderTable(scoped);
 }
@@ -966,31 +966,24 @@ function renderSubstrateBreakdown(container, earnings, category) {
 }
 
 // Shared by Repeat Buyers and Customers — both need the same per-buyer
-// aggregation (purchase count/total/dates, a per-design breakdown, and
-// return count/total), just filtered and rendered differently. Guest
-// checkouts are anonymized to a null buyer by Spoonflower and can't be
-// tracked as a person at all, so they're excluded here rather than in each
-// caller. Takes the full scoped record set (not just earnings) so returns
-// — which carry the same buyer field as the sale they came from — are
-// counted too; sales and fill-a-yard rows still build the purchase/design
-// stats, everything else (payouts, non-return non-sale rows) is ignored.
-function buildBuyerSummaries(records) {
+// aggregation (purchase count/total/dates plus a per-design breakdown),
+// just filtered and rendered differently. Guest checkouts are anonymized
+// to a null buyer by Spoonflower and can't be tracked as a person at all,
+// so they're excluded here rather than in each caller.
+//
+// Deliberately earnings-only: an earlier version also tracked returns per
+// buyer, but Spoonflower's CSV export leaves the Customer column blank on
+// cancellation/adjustment rows even when the original sale had a named
+// buyer, so a return could never actually be attributed to anyone — the
+// "Returned" column it produced showed "—" for every single buyer. Rather
+// than ship a column that can never show real data, that was removed;
+// per-design return rate (unaffected by this, since it doesn't need a
+// buyer) is still in the Returns card below.
+function buildBuyerSummaries(earnings) {
   const byBuyer = new Map();
-  records.forEach((r) => {
+  earnings.forEach((r) => {
     if (!r.buyer) return;
-    if (!isEarningRecord(r) && r.type !== "return") return;
-
-    const prev =
-      byBuyer.get(r.buyer) ||
-      { buyer: r.buyer, count: 0, total: 0, first: null, last: null, returnCount: 0, returnTotal: 0, designs: new Map() };
-
-    if (r.type === "return") {
-      prev.returnCount += 1;
-      prev.returnTotal += Math.abs(r.amount);
-      byBuyer.set(r.buyer, prev);
-      return;
-    }
-
+    const prev = byBuyer.get(r.buyer) || { buyer: r.buyer, count: 0, total: 0, first: r.date, last: r.date, designs: new Map() };
     prev.count += 1;
     prev.total += r.amount;
     if (r.date && (!prev.first || r.date < prev.first)) prev.first = r.date;
@@ -1042,34 +1035,9 @@ function buildBuyerDesignListEl(designsMap) {
   return designList;
 }
 
-// Shared by both buyer tables' summary row.
-function buildReturnedTd(b) {
-  const td = document.createElement("td");
-  td.className = "num";
-  if (b.returnCount > 0) {
-    td.textContent = b.returnCount.toLocaleString();
-    td.classList.add("num-warn");
-    td.title = `${formatCurrency(b.returnTotal)} returned`;
-  } else {
-    td.textContent = "—";
-  }
-  return td;
-}
-
-// Shared by both buyer tables' detail panel — a one-line note above the
-// design list when this buyer has returned anything, since a design-level
-// breakdown of sales alone can't otherwise tell you that.
-function buildReturnedNoteEl(b) {
-  if (b.returnCount === 0) return null;
-  const p = document.createElement("p");
-  p.className = "muted returned-note";
-  p.textContent = `Returned ${b.returnCount} item${b.returnCount === 1 ? "" : "s"} (${formatCurrency(b.returnTotal)}).`;
-  return p;
-}
-
-function renderRepeatBuyers(scopedRecords) {
+function renderRepeatBuyers(earnings) {
   const card = document.getElementById("repeat-buyers-card");
-  const repeats = buildBuyerSummaries(scopedRecords)
+  const repeats = buildBuyerSummaries(earnings)
     .filter((b) => b.count >= 2)
     .sort((a, b) => b.count - a.count || b.total - a.total)
     .slice(0, 25);
@@ -1106,7 +1074,7 @@ function renderRepeatBuyers(scopedRecords) {
     firstTd.textContent = b.first || "";
     const lastTd = document.createElement("td");
     lastTd.textContent = b.last || "";
-    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd, buildReturnedTd(b));
+    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd);
     tbody.appendChild(tr);
 
     const detailTr = document.createElement("tr");
@@ -1114,9 +1082,7 @@ function renderRepeatBuyers(scopedRecords) {
     detailTr.className = "buyer-detail-row";
     detailTr.hidden = true;
     const detailTd = document.createElement("td");
-    detailTd.colSpan = 6;
-    const returnedNote = buildReturnedNoteEl(b);
-    if (returnedNote) detailTd.appendChild(returnedNote);
+    detailTd.colSpan = 5;
     detailTd.appendChild(buildBuyerDesignListEl(b.designs));
     detailTr.appendChild(detailTd);
     tbody.appendChild(detailTr);
@@ -1189,9 +1155,9 @@ function refreshCustomerRowTags(buyer) {
   }
 }
 
-function renderCustomers(scopedRecords) {
+function renderCustomers(earnings) {
   const card = document.getElementById("customers-card");
-  const buyers = buildBuyerSummaries(scopedRecords);
+  const buyers = buildBuyerSummaries(earnings);
   if (buyers.length === 0) {
     card.hidden = true;
     return;
@@ -1245,7 +1211,7 @@ function renderCustomers(scopedRecords) {
     firstTd.textContent = b.first || "";
     const lastTd = document.createElement("td");
     lastTd.textContent = b.last || "";
-    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd, buildReturnedTd(b));
+    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd);
     tbody.appendChild(tr);
 
     const detailTr = document.createElement("tr");
@@ -1253,9 +1219,7 @@ function renderCustomers(scopedRecords) {
     detailTr.className = "buyer-detail-row";
     detailTr.hidden = true;
     const detailTd = document.createElement("td");
-    detailTd.colSpan = 6;
-    const returnedNote = buildReturnedNoteEl(b);
-    if (returnedNote) detailTd.appendChild(returnedNote);
+    detailTd.colSpan = 5;
 
     const tagsRow = document.createElement("div");
     tagsRow.className = "customer-tags-row";
