@@ -176,6 +176,12 @@ main {
   color: var(--critical);
 }
 
+.stat-tile .note {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 .chart-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -264,6 +270,9 @@ a.bar-label:focus-visible {
 .bar-row .bar-fill.cat-other {
   background: var(--series-3);
 }
+.bar-row .bar-fill--clickable {
+  cursor: pointer;
+}
 .bar-row .bar-value {
   min-width: 70px;
   text-align: right;
@@ -292,6 +301,32 @@ a.bar-label:focus-visible {
   background: var(--page);
   color: var(--text-primary);
   min-width: 240px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--series-1);
+  background: var(--series-1-wash);
+  border: 1px solid var(--series-1);
+  border-radius: 20px;
+  padding: 5px 8px 5px 12px;
+  margin-bottom: 12px;
+}
+.filter-chip[hidden] {
+  display: none;
+}
+.filter-chip button {
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
 }
 
 .table-scroll {

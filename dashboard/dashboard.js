@@ -116,8 +116,8 @@ function buildDesignLinkEl(designId, name, productTypeRevenueMap) {
 function renderStatTiles(container, stats) {
   container.replaceChildren();
   const tiles = [
-    { label: "Total revenue", value: formatCompactCurrency(stats.totalRevenue), delta: stats.revenueDelta },
-    { label: "Sales tracked", value: stats.salesCount.toLocaleString() },
+    { label: "Total revenue", value: formatCompactCurrency(stats.totalRevenue), delta: stats.revenueDelta, note: stats.refundNote },
+    { label: "Sales tracked", value: stats.salesCount.toLocaleString(), note: stats.guestNote },
     { label: "Avg per sale", value: formatCurrency(stats.avgPerSale) },
     { label: "This month", value: formatCompactCurrency(stats.monthRevenue) }
   ];
@@ -142,6 +142,12 @@ function renderStatTiles(container, stats) {
         deltaEl.textContent = `${up ? "▲" : "▼"} ${Math.abs(t.delta.pct).toFixed(1)}% ${t.delta.periodLabel}`;
       }
       div.appendChild(deltaEl);
+    }
+    if (t.note) {
+      const noteEl = document.createElement("div");
+      noteEl.className = "note";
+      noteEl.textContent = t.note;
+      div.appendChild(noteEl);
     }
     container.appendChild(div);
   });
@@ -341,6 +347,22 @@ function renderBarChart(container, items) {
     fill.addEventListener("mouseleave", hide);
     fill.addEventListener("focus", show);
     fill.addEventListener("blur", hide);
+
+    // Click-to-drill: the bar itself (not the label, which may already be
+    // an external link to the design's Spoonflower page) filters the
+    // transaction table below to this bar's underlying records.
+    if (typeof item.onClick === "function") {
+      fill.classList.add("bar-fill--clickable");
+      fill.setAttribute("role", "button");
+      fill.setAttribute("aria-label", `Filter transactions by ${item.label}`);
+      fill.addEventListener("click", item.onClick);
+      fill.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          item.onClick();
+        }
+      });
+    }
   });
 }
 
@@ -352,6 +374,13 @@ let currentSort = { key: "date", dir: "desc" };
 let currentSearch = "";
 let tagsByDesignId = new Map(); // designId -> string[] tags, from Sync Design Tags
 let designRollups = new Map(); // designId -> all-time sale/return rollup, from buildDesignRollups
+let currentDrillFilter = null; // { label: string, designIds: Set<string> } | null — set by clicking a chart bar
+
+function applyDrillFilter(filter) {
+  currentDrillFilter = filter;
+  renderAll();
+  document.getElementById("tx-table").scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 function isEarningRecord(r) {
   return r.type === "sale" || r.type === "fill_a_yard";
@@ -491,12 +520,19 @@ function renderAll() {
   const thisMonthKey = new Date().toISOString().slice(0, 7);
   const monthRevenue = earnings.filter((r) => (r.date || "").startsWith(thisMonthKey)).reduce((s, r) => s + r.amount, 0);
 
+  const refundTotal = Math.abs(scoped.filter((r) => r.type === "return").reduce((s, r) => s + r.amount, 0));
+  const refundPct = totalRevenue > 0 ? (refundTotal / totalRevenue) * 100 : 0;
+  const guestCount = earnings.filter((r) => !r.buyer).length;
+  const guestPct = earnings.length ? (guestCount / earnings.length) * 100 : 0;
+
   renderStatTiles(document.getElementById("stat-tiles"), {
     totalRevenue,
     salesCount: earnings.length,
     avgPerSale: earnings.length ? totalRevenue / earnings.length : 0,
     monthRevenue,
-    revenueDelta: buildRevenueDelta(totalRevenue, currentRange)
+    revenueDelta: buildRevenueDelta(totalRevenue, currentRange),
+    refundNote: refundTotal > 0 ? `${formatCurrency(refundTotal)} refunds (${refundPct.toFixed(1)}%)` : null,
+    guestNote: earnings.length ? `${guestPct.toFixed(0)}% guest checkout` : null
   });
 
   const useMonthly = currentRange === "all" || currentRange === "12m" || currentRange === "ytd";
@@ -521,7 +557,12 @@ function renderAll() {
     .slice(0, 10)
     .map((d) => {
       const bestSlug = Array.from(d.productTypeRevenue.entries()).sort((a, b) => b[1] - a[1])[0][0];
-      return { label: `${d.name} (#${d.designId})`, value: d.value, href: designUrl(d.designId, bestSlug) };
+      return {
+        label: `${d.name} (#${d.designId})`,
+        value: d.value,
+        href: designUrl(d.designId, bestSlug),
+        onClick: () => applyDrillFilter({ label: d.name, designIds: new Set([d.designId]) })
+      };
     });
   renderBarChart(document.getElementById("top-designs-chart"), topDesigns);
 
@@ -529,11 +570,14 @@ function renderAll() {
   earnings.forEach((r) => {
     const key = r.category || "Other";
     const colorClass = key === "Fabric" ? "cat-fabric" : key === "Other" ? "cat-other" : "";
-    const prev = byCategory.get(key) || { label: key, value: 0, colorClass };
+    const prev = byCategory.get(key) || { label: key, value: 0, colorClass, units: 0 };
     prev.value += r.amount;
+    prev.units += r.quantity || 1;
     byCategory.set(key, prev);
   });
-  const categories = Array.from(byCategory.values()).sort((a, b) => b.value - a.value);
+  const categories = Array.from(byCategory.values())
+    .sort((a, b) => b.value - a.value)
+    .map((c) => ({ ...c, valueLabel: `${formatCurrency(c.value)} · ${formatCurrency(c.value / c.units)}/unit` }));
   renderBarChart(document.getElementById("category-chart"), categories);
 
   renderSubstrateBreakdown(document.getElementById("wallpaper-types-chart"), earnings, "Wallpaper");
@@ -727,7 +771,8 @@ function renderTagRevenue(earnings) {
     .map((t) => ({
       label: t.label,
       value: t.value,
-      valueLabel: `${formatCurrency(t.value)} · ${t.designIds.size} design${t.designIds.size === 1 ? "" : "s"}`
+      valueLabel: `${formatCurrency(t.value)} · ${t.designIds.size} design${t.designIds.size === 1 ? "" : "s"}`,
+      onClick: () => applyDrillFilter({ label: `word "${t.label}"`, designIds: t.designIds })
     }));
   renderBarChart(document.getElementById("tags-chart"), items);
   renderUntaggedDesigns(Array.from(untaggedByDesignId.values()));
@@ -775,11 +820,14 @@ function renderSubstrateBreakdown(container, earnings, category) {
     .filter((r) => r.category === category)
     .forEach((r) => {
       const key = r.substrate || "Unspecified";
-      const prev = bySubstrate.get(key) || { label: key, value: 0 };
+      const prev = bySubstrate.get(key) || { label: key, value: 0, units: 0 };
       prev.value += r.amount;
+      prev.units += r.quantity || 1;
       bySubstrate.set(key, prev);
     });
-  const items = Array.from(bySubstrate.values()).sort((a, b) => b.value - a.value);
+  const items = Array.from(bySubstrate.values())
+    .sort((a, b) => b.value - a.value)
+    .map((s) => ({ ...s, valueLabel: `${formatCurrency(s.value)} · ${formatCurrency(s.value / s.units)}/unit` }));
   renderBarChart(container, items);
 }
 
@@ -938,6 +986,16 @@ function renderReturnsCard(scopedRecords) {
 
 function renderTable(scopedRecords) {
   let rows = scopedRecords.filter((r) => r.type !== "payout" && r.type !== "return");
+
+  const chip = document.getElementById("drill-filter-chip");
+  if (currentDrillFilter) {
+    rows = rows.filter((r) => r.designId && currentDrillFilter.designIds.has(r.designId));
+    chip.hidden = false;
+    document.getElementById("drill-filter-label").textContent = `Filtered by ${currentDrillFilter.label}`;
+  } else {
+    chip.hidden = true;
+  }
+
   if (currentSearch) {
     rows = rows.filter(
       (r) => (r.designName || "").toLowerCase().includes(currentSearch) || (r.productName || "").toLowerCase().includes(currentSearch)
@@ -1118,6 +1176,11 @@ async function init() {
     btn.setAttribute("aria-expanded", String(!expanded));
     list.hidden = expanded;
     btn.textContent = (expanded ? "▸" : "▾") + btn.textContent.slice(1);
+  });
+
+  document.getElementById("drill-filter-clear").addEventListener("click", () => {
+    currentDrillFilter = null;
+    renderAll();
   });
 
   document.getElementById("table-search").addEventListener("input", (e) => {
