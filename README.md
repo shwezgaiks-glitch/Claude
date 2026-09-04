@@ -53,11 +53,16 @@ back in one response.
 - **Dashboard** (`dashboard/`) — a full analytics view: revenue trend with a
   period-over-period delta, top designs (linked to their Spoonflower
   product pages), revenue by category and by substrate (wallpaper/fabric
-  types), revenue by tag, new design performance (how much of a design's
-  revenue arrives in its first 30/60/90 days), repeat buyers (with a
-  per-buyer design breakdown), returns (a date-scoped summary alongside an
-  all-time return-rate-by-design table), official payout figures, a
-  searchable/sortable transaction table, and CSV export.
+  types, each with a $/unit average), revenue by tag, new design
+  performance (how much of a design's revenue arrives in its first
+  30/60/90 days), repeat buyers (with a per-buyer design breakdown),
+  returns (a date-scoped summary alongside an all-time
+  return-rate-by-design table), official payout figures, a
+  searchable/sortable transaction table, and CSV export. Refund % and
+  guest-checkout % surface as notes on the revenue and sales-count tiles.
+  Clicking a bar in Top Designs or Revenue by Tag filters the transaction
+  table to just that design's or tag's records (click the chip's × to
+  clear it).
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)
@@ -98,11 +103,13 @@ back in one response.
 ## Extending
 
 This version covers: revenue trend with period-over-period deltas,
-best/worst sellers, product-type (wallpaper/fabric) breakdown, revenue by
-tag, new design performance (30/60/90-day revenue share), returns (with an
-all-time return-rate-by-design breakdown), repeat buyers, official payout
-figures, and CSV export. A natural next addition: a top-vs-bottom design
-name/keyword comparison (what words show up on your best sellers vs. your
-weakest ones) — a design-performance view showing view/favorite counts
+best/worst sellers, product-type (wallpaper/fabric) breakdown with $/unit
+pricing, revenue by tag, new design performance (30/60/90-day revenue
+share), returns (with an all-time return-rate-by-design breakdown),
+repeat buyers, official payout figures, click-to-drill chart filtering,
+refund/guest-checkout stat notes, and CSV export. A natural next addition:
+a top-vs-bottom design name/keyword comparison (what words show up on
+your best sellers vs. your weakest ones) — a design-performance view
+showing view/favorite counts
 isn't possible unless Spoonflower exposes those alongside sales somewhere
 we haven't found yet.
