@@ -29,6 +29,7 @@
         <button type="button" class="filter-btn" data-range="ytd">Year to date</button>
         <button type="button" class="filter-btn" data-range="month">This month</button>
         <button type="button" class="filter-btn" data-range="90d">Last 90 days</button>
+        <button type="button" class="filter-btn" data-range="30d">Last 30 days</button>
       </div>
 
       <section class="stat-tiles" id="stat-tiles"></section>
@@ -147,6 +148,9 @@
             <button type="button" id="customers-repeat-toggle" class="filter-btn" aria-pressed="false">
               Repeat buyers only
             </button>
+            <button type="button" id="buyer-notes-export" class="filter-btn">Export tags/notes</button>
+            <button type="button" id="buyer-notes-import" class="filter-btn">Import</button>
+            <input id="buyer-notes-file" type="file" accept="application/json,.json" hidden />
             <input id="customer-search" type="search" placeholder="Search by name, tag, or note…" />
           </div>
         </div>

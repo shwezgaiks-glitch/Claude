@@ -134,7 +134,12 @@ back in one response.
   the Customers card, and CSV export.
 - Buyer tags and notes (Customers card) are entirely your own typed
   input — never scraped from Spoonflower, never sent anywhere, stored
-  only in this browser's IndexedDB alongside everything else.
+  only in this browser's IndexedDB alongside everything else. They're also
+  the one thing here that can't be re-synced if lost, so the Customers
+  card has **Export tags/notes** and **Import** buttons: export writes a
+  small JSON file, import merges it back (per buyer, the imported record
+  replaces the local one; buyers absent from the file are left alone, and
+  you get the counts to confirm before anything is written).
 - Uninstalling the extension removes its local database.
 
 ## Extending
@@ -147,9 +152,7 @@ Customers card with user-editable tags/notes and a repeat-buyer filter, a
 per-design detail view (lifetime trend, buyer type and product mix,
 with the design's thumbnail), official payout figures, click-to-drill
 chart filtering, refund/guest-checkout stat notes, keyword trend small
-multiples, tag-derived design families, swatch conversion, and CSV
-export. A natural next addition: an export/import path for the buyer tags
-and notes, which currently exist only in this browser with no backup — a
-design-performance view showing view/favorite counts isn't possible
-unless Spoonflower exposes those alongside sales somewhere we haven't
-found yet.
+multiples, tag-derived design families, swatch conversion, CSV export,
+and JSON export/import of buyer tags and notes. A design-performance view
+showing view/favorite counts isn't possible unless Spoonflower exposes
+those alongside sales somewhere we haven't found yet.

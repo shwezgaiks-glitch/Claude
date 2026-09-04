@@ -5,7 +5,8 @@ import {
   getAllDesignTags,
   clearAllTransactions,
   getAllBuyerNotes,
-  putBuyerNote
+  putBuyerNote,
+  putBuyerNotes
 } from "../lib/db.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -478,6 +479,11 @@ function isEarningRecord(r) {
 
 function getRangeBounds(range) {
   const now = new Date();
+  if (range === "30d") {
+    const from = new Date(now);
+    from.setDate(from.getDate() - 30);
+    return { from: isoDate(from), to: isoDate(now) };
+  }
   if (range === "90d") {
     const from = new Date(now);
     from.setDate(from.getDate() - 90);
@@ -512,6 +518,13 @@ function filterByRange(records, range) {
 // meaningful prior period to compare against.
 function getPreviousRangeBounds(range) {
   const now = new Date();
+  if (range === "30d") {
+    const to = new Date(now);
+    to.setDate(to.getDate() - 31);
+    const from = new Date(now);
+    from.setDate(from.getDate() - 60);
+    return { from: isoDate(from), to: isoDate(to) };
+  }
   if (range === "90d") {
     const to = new Date(now);
     to.setDate(to.getDate() - 91);
@@ -543,6 +556,8 @@ function getPreviousRangeBounds(range) {
 
 function previousPeriodLabel(range) {
   switch (range) {
+    case "30d":
+      return "vs prior 30 days";
     case "90d":
       return "vs prior 90 days";
     case "12m":
@@ -1842,6 +1857,17 @@ function csvEscape(v) {
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function exportCsv() {
   const headers = [
     "id", "date", "type", "amount", "balance", "designId", "designName",
@@ -1851,15 +1877,106 @@ function exportCsv() {
   allRecords.forEach((r) => {
     lines.push(headers.map((h) => csvEscape(r[h])).join(","));
   });
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `spoonflower-sales-${isoDate(new Date())}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([lines.join("\n")], { type: "text/csv" }), `spoonflower-sales-${isoDate(new Date())}.csv`);
+}
+
+// ---------- Buyer tags & notes backup ----------
+// These are the one thing here that can't be re-synced: everything else is
+// re-fetchable from Spoonflower, but tags and notes are typed by hand and
+// live only in this browser. JSON rather than CSV because notes are
+// free text (commas, quotes, newlines) and tags are a list — both of which
+// CSV would mangle or need escaping gymnastics to round-trip.
+
+const BUYER_NOTES_EXPORT_TYPE = "spoonflower-analytics-buyer-notes";
+
+function exportBuyerNotes() {
+  const buyers = Array.from(buyerNotesByBuyer.values())
+    // Skip records emptied out by removing every tag and clearing the note —
+    // they carry nothing worth restoring.
+    .filter((n) => (n.tags && n.tags.length) || (n.notes || "").trim())
+    .sort((a, b) => a.buyer.localeCompare(b.buyer));
+
+  if (buyers.length === 0) {
+    alert("No buyer tags or notes to export yet — add some in the Customers card first.");
+    return;
+  }
+
+  const payload = {
+    type: BUYER_NOTES_EXPORT_TYPE,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    buyers
+  };
+  downloadBlob(
+    new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }),
+    `spoonflower-buyer-notes-${isoDate(new Date())}.json`
+  );
+}
+
+// Everything here is a boundary check on a user-supplied file: the shape is
+// verified before anything is written, and individual malformed entries are
+// skipped rather than aborting a whole restore.
+function parseBuyerNotesFile(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("That file isn't valid JSON.");
+  }
+  if (!parsed || parsed.type !== BUYER_NOTES_EXPORT_TYPE || !Array.isArray(parsed.buyers)) {
+    throw new Error("That doesn't look like a buyer tags/notes export from this extension.");
+  }
+
+  const records = [];
+  let skipped = 0;
+  parsed.buyers.forEach((entry) => {
+    if (!entry || typeof entry.buyer !== "string" || !entry.buyer.trim()) {
+      skipped++;
+      return;
+    }
+    // Coerce rather than trust: a tags value that isn't an array of strings
+    // would blow up later in the search filter and the chip renderer.
+    const tags = Array.isArray(entry.tags) ? entry.tags.filter((t) => typeof t === "string" && t.trim()) : [];
+    records.push({
+      buyer: entry.buyer,
+      tags,
+      notes: typeof entry.notes === "string" ? entry.notes : "",
+      updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : new Date().toISOString()
+    });
+  });
+  return { records, skipped };
+}
+
+async function importBuyerNotes(file) {
+  let parsed;
+  try {
+    parsed = parseBuyerNotesFile(await file.text());
+  } catch (err) {
+    alert(`Import failed. ${err.message}`);
+    return;
+  }
+  if (parsed.records.length === 0) {
+    alert("That file had no usable buyer entries in it.");
+    return;
+  }
+
+  // Merge, imported wins per buyer. Stated up front with counts so
+  // overwriting existing notes is a decision rather than a surprise.
+  const overwriting = parsed.records.filter((r) => buyerNotesByBuyer.has(r.buyer)).length;
+  const adding = parsed.records.length - overwriting;
+  const confirmed = confirm(
+    `Import ${parsed.records.length} buyer record(s)?\n\n` +
+      `• ${adding} new\n` +
+      `• ${overwriting} will replace tags/notes you already have for that buyer\n` +
+      `${parsed.skipped > 0 ? `• ${parsed.skipped} malformed entr(y/ies) will be skipped\n` : ""}` +
+      `\nBuyers not in this file are left untouched.`
+  );
+  if (!confirmed) return;
+
+  await putBuyerNotes(parsed.records);
+  parsed.records.forEach((r) => buyerNotesByBuyer.set(r.buyer, r));
+  renderAll();
+  alert(`Imported ${parsed.records.length} buyer record(s).`);
 }
 
 // ---------- Wiring ----------
@@ -1956,6 +2073,17 @@ async function init() {
   document.getElementById("customer-search").addEventListener("input", (e) => {
     currentCustomerSearch = e.target.value.toLowerCase();
     renderAll();
+  });
+
+  document.getElementById("buyer-notes-export").addEventListener("click", exportBuyerNotes);
+
+  const notesFileInput = document.getElementById("buyer-notes-file");
+  document.getElementById("buyer-notes-import").addEventListener("click", () => notesFileInput.click());
+  notesFileInput.addEventListener("change", async () => {
+    const file = notesFileInput.files && notesFileInput.files[0];
+    // Reset first so picking the same file twice in a row still fires change.
+    notesFileInput.value = "";
+    if (file) await importBuyerNotes(file);
   });
 
   document.getElementById("customers-repeat-toggle").addEventListener("click", (e) => {
