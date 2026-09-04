@@ -613,8 +613,8 @@ function renderAll() {
   renderSubstrateBreakdown(document.getElementById("fabric-types-chart"), earnings, "Fabric");
 
   renderTagRevenue(earnings);
-  renderRepeatBuyers(earnings);
-  renderCustomers(earnings);
+  renderRepeatBuyers(scoped);
+  renderCustomers(scoped);
   renderReturnsCard(scoped);
   renderTable(scoped);
 }
@@ -966,15 +966,31 @@ function renderSubstrateBreakdown(container, earnings, category) {
 }
 
 // Shared by Repeat Buyers and Customers — both need the same per-buyer
-// aggregation (purchase count/total/dates plus a per-design breakdown),
-// just filtered and rendered differently. Guest checkouts are anonymized
-// to a null buyer by Spoonflower and can't be tracked as a person at all,
-// so they're excluded here rather than in each caller.
-function buildBuyerSummaries(earnings) {
+// aggregation (purchase count/total/dates, a per-design breakdown, and
+// return count/total), just filtered and rendered differently. Guest
+// checkouts are anonymized to a null buyer by Spoonflower and can't be
+// tracked as a person at all, so they're excluded here rather than in each
+// caller. Takes the full scoped record set (not just earnings) so returns
+// — which carry the same buyer field as the sale they came from — are
+// counted too; sales and fill-a-yard rows still build the purchase/design
+// stats, everything else (payouts, non-return non-sale rows) is ignored.
+function buildBuyerSummaries(records) {
   const byBuyer = new Map();
-  earnings.forEach((r) => {
+  records.forEach((r) => {
     if (!r.buyer) return;
-    const prev = byBuyer.get(r.buyer) || { buyer: r.buyer, count: 0, total: 0, first: r.date, last: r.date, designs: new Map() };
+    if (!isEarningRecord(r) && r.type !== "return") return;
+
+    const prev =
+      byBuyer.get(r.buyer) ||
+      { buyer: r.buyer, count: 0, total: 0, first: null, last: null, returnCount: 0, returnTotal: 0, designs: new Map() };
+
+    if (r.type === "return") {
+      prev.returnCount += 1;
+      prev.returnTotal += Math.abs(r.amount);
+      byBuyer.set(r.buyer, prev);
+      return;
+    }
+
     prev.count += 1;
     prev.total += r.amount;
     if (r.date && (!prev.first || r.date < prev.first)) prev.first = r.date;
@@ -1026,9 +1042,34 @@ function buildBuyerDesignListEl(designsMap) {
   return designList;
 }
 
-function renderRepeatBuyers(earnings) {
+// Shared by both buyer tables' summary row.
+function buildReturnedTd(b) {
+  const td = document.createElement("td");
+  td.className = "num";
+  if (b.returnCount > 0) {
+    td.textContent = b.returnCount.toLocaleString();
+    td.classList.add("num-warn");
+    td.title = `${formatCurrency(b.returnTotal)} returned`;
+  } else {
+    td.textContent = "—";
+  }
+  return td;
+}
+
+// Shared by both buyer tables' detail panel — a one-line note above the
+// design list when this buyer has returned anything, since a design-level
+// breakdown of sales alone can't otherwise tell you that.
+function buildReturnedNoteEl(b) {
+  if (b.returnCount === 0) return null;
+  const p = document.createElement("p");
+  p.className = "muted returned-note";
+  p.textContent = `Returned ${b.returnCount} item${b.returnCount === 1 ? "" : "s"} (${formatCurrency(b.returnTotal)}).`;
+  return p;
+}
+
+function renderRepeatBuyers(scopedRecords) {
   const card = document.getElementById("repeat-buyers-card");
-  const repeats = buildBuyerSummaries(earnings)
+  const repeats = buildBuyerSummaries(scopedRecords)
     .filter((b) => b.count >= 2)
     .sort((a, b) => b.count - a.count || b.total - a.total)
     .slice(0, 25);
@@ -1065,7 +1106,7 @@ function renderRepeatBuyers(earnings) {
     firstTd.textContent = b.first || "";
     const lastTd = document.createElement("td");
     lastTd.textContent = b.last || "";
-    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd);
+    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd, buildReturnedTd(b));
     tbody.appendChild(tr);
 
     const detailTr = document.createElement("tr");
@@ -1073,7 +1114,9 @@ function renderRepeatBuyers(earnings) {
     detailTr.className = "buyer-detail-row";
     detailTr.hidden = true;
     const detailTd = document.createElement("td");
-    detailTd.colSpan = 5;
+    detailTd.colSpan = 6;
+    const returnedNote = buildReturnedNoteEl(b);
+    if (returnedNote) detailTd.appendChild(returnedNote);
     detailTd.appendChild(buildBuyerDesignListEl(b.designs));
     detailTr.appendChild(detailTd);
     tbody.appendChild(detailTr);
@@ -1146,9 +1189,9 @@ function refreshCustomerRowTags(buyer) {
   }
 }
 
-function renderCustomers(earnings) {
+function renderCustomers(scopedRecords) {
   const card = document.getElementById("customers-card");
-  const buyers = buildBuyerSummaries(earnings);
+  const buyers = buildBuyerSummaries(scopedRecords);
   if (buyers.length === 0) {
     card.hidden = true;
     return;
@@ -1202,7 +1245,7 @@ function renderCustomers(earnings) {
     firstTd.textContent = b.first || "";
     const lastTd = document.createElement("td");
     lastTd.textContent = b.last || "";
-    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd);
+    tr.append(buyerTd, countTd, totalTd, firstTd, lastTd, buildReturnedTd(b));
     tbody.appendChild(tr);
 
     const detailTr = document.createElement("tr");
@@ -1210,7 +1253,9 @@ function renderCustomers(earnings) {
     detailTr.className = "buyer-detail-row";
     detailTr.hidden = true;
     const detailTd = document.createElement("td");
-    detailTd.colSpan = 5;
+    detailTd.colSpan = 6;
+    const returnedNote = buildReturnedNoteEl(b);
+    if (returnedNote) detailTd.appendChild(returnedNote);
 
     const tagsRow = document.createElement("div");
     tagsRow.className = "customer-tags-row";

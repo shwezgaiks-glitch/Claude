@@ -406,6 +406,15 @@ a.bar-label:focus-visible {
   color: var(--text-muted);
 }
 
+.num-warn {
+  color: var(--critical);
+}
+
+.returned-note {
+  color: var(--critical);
+  margin: 0 0 10px;
+}
+
 .customer-tags-row {
   display: flex;
   flex-wrap: wrap;
