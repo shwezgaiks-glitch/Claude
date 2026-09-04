@@ -331,6 +331,9 @@ a.bar-label:focus-visible {
   display: grid;
   gap: 4px;
 }
+.buyer-design-list[hidden] {
+  display: none;
+}
 .buyer-design-list li {
   display: flex;
   justify-content: space-between;
