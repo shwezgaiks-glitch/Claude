@@ -685,19 +685,15 @@ function renderAll() {
   const byCategory = new Map();
   earnings.forEach((r) => {
     const key = r.category || "Other";
-    const colorClass = key === "Fabric" ? "cat-fabric" : key === "Other" ? "cat-other" : "";
-    const prev = byCategory.get(key) || { label: key, value: 0, colorClass, units: 0 };
+    const prev = byCategory.get(key) || { label: key, value: 0, colorClass: categoryColorClass(key) };
     prev.value += r.amount;
-    prev.units += r.quantity || 1;
     byCategory.set(key, prev);
   });
-  const categories = Array.from(byCategory.values())
-    .sort((a, b) => b.value - a.value)
-    .map((c) => ({ ...c, valueLabel: `${formatCurrency(c.value)} · ${formatCurrency(c.value / c.units)}/unit` }));
+  const categories = Array.from(byCategory.values()).sort((a, b) => b.value - a.value);
   renderBarChart(document.getElementById("category-chart"), categories);
 
-  renderSubstrateBreakdown(document.getElementById("wallpaper-types-chart"), earnings, "Wallpaper");
-  renderSubstrateBreakdown(document.getElementById("fabric-types-chart"), earnings, "Fabric");
+  renderSubstrateBreakdown("wallpaper-types", earnings, "Wallpaper");
+  renderSubstrateBreakdown("fabric-types", earnings, "Fabric");
 
   renderKeywords(earnings);
   renderTagGroups(earnings);
@@ -1747,26 +1743,36 @@ function renderTagGroups(earnings) {
   });
 }
 
+// Colour follows the entity, not the rank: Wallpaper is always the first
+// series hue, Fabric always the second, Other the third — in the category
+// chart and again in each substrate breakdown, so a reader can carry a
+// colour from one card to the next.
+function categoryColorClass(category) {
+  if (category === "Fabric") return "cat-fabric";
+  if (category === "Other") return "cat-other";
+  return "";
+}
+
 // "Substrate" is the specific material within a category — e.g. within
 // Wallpaper: Traditional, Peel and Stick, Grasscloth; within Fabric: Petal
 // Signature Cotton, Cotton Poplin, Velvet. Ranked single-measure bar chart,
 // same treatment as Top designs (one hue — these aren't distinct series
 // being compared, just categories ranked by one number).
-function renderSubstrateBreakdown(container, earnings, category) {
+function renderSubstrateBreakdown(idPrefix, earnings, category) {
   const bySubstrate = new Map();
   earnings
     .filter((r) => r.category === category)
     .forEach((r) => {
       const key = r.substrate || "Unspecified";
-      const prev = bySubstrate.get(key) || { label: key, value: 0, units: 0 };
+      const prev = bySubstrate.get(key) || { label: key, value: 0, colorClass: categoryColorClass(category) };
       prev.value += r.amount;
-      prev.units += r.quantity || 1;
       bySubstrate.set(key, prev);
     });
-  const items = Array.from(bySubstrate.values())
-    .sort((a, b) => b.value - a.value)
-    .map((s) => ({ ...s, valueLabel: `${formatCurrency(s.value)} · ${formatCurrency(s.value / s.units)}/unit` }));
-  renderBarChart(container, items);
+  const items = Array.from(bySubstrate.values()).sort((a, b) => b.value - a.value);
+  // A seller who has never sold wallpaper shouldn't get a card saying so —
+  // the whole card goes rather than rendering an empty chart in it.
+  document.getElementById(`${idPrefix}-card`).hidden = items.length === 0;
+  renderBarChart(document.getElementById(`${idPrefix}-chart`), items);
 }
 
 // Shared by Repeat Buyers and Customers — both need the same per-buyer

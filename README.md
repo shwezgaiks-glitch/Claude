@@ -67,8 +67,10 @@ back in one response.
   anything — carry an "all-time" badge, so neighbouring cards disagreeing
   about scope reads as intentional rather than as a bug. In full: revenue trend with a
   period-over-period delta, top designs (linked to their Spoonflower
-  product pages), revenue by category and by substrate (wallpaper/fabric
-  types, each with a $/unit average), revenue by tag, keyword trends,
+  product pages), revenue by category and, in their own cards, by
+  substrate within wallpaper and within fabric (each breakdown painted in
+  its parent category's colour, and hidden entirely if you've never sold
+  that category), revenue by tag, keyword trends,
   design families, swatch conversion, never-sold designs, weekly listing-limit
   tracking, new design performance (how much of a design's revenue arrives in its first
   30/60/90 days), returns (a date-scoped summary alongside an all-time
@@ -206,8 +208,7 @@ back in one response.
 ## Extending
 
 This version covers: revenue trend with period-over-period deltas,
-best/worst sellers, product-type (wallpaper/fabric) breakdown with $/unit
-pricing, revenue by tag, new design performance (30/60/90-day revenue
+best/worst sellers, product-type (wallpaper/fabric) breakdown, revenue by tag, new design performance (30/60/90-day revenue
 share), returns (with an all-time return-rate-by-design breakdown), a
 Customers card with user-editable tags/notes and a repeat-buyer filter, a
 per-design detail view (lifetime trend, buyer type and product mix,

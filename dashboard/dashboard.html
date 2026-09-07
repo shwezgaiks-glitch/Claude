@@ -196,26 +196,31 @@
             <p class="section-question">“which formats and price points work?”</p>
           </div>
         </header>
-        <p class="section-blurb muted">Which categories and materials sell, at what average price point, and whether the swatches people order turn into full-size purchases later. Useful for deciding what to offer rather than what to draw.</p>
+        <p class="section-blurb muted">Which categories and materials your revenue comes from, and whether the swatches people order turn into full-size purchases later. Useful for deciding what to offer rather than what to draw.</p>
         <section class="chart-card">
-          <h3>Products</h3>
+          <h3>Revenue by category</h3>
           <p class="muted">
-            Revenue by broad category, then by the specific material within each — substrate is a breakdown of
-            category, not a separate ranking. The $/unit figure beside each bar is that bucket's average price
-            point, which is what separates "sells often, cheaply" from "sells rarely, for a lot".
+            The broad split — wallpaper, fabric, and everything else. Each colour carries through to its own
+            breakdown below, so you can follow a category from here into the materials that make it up.
           </p>
-          <h4>By category</h4>
-          <div id="category-chart" class="chart-container"></div>
-          <div class="two-col">
-            <div>
-              <h4>Wallpaper by type</h4>
-              <div id="wallpaper-types-chart" class="chart-container"></div>
-            </div>
-            <div>
-              <h4>Fabric by type</h4>
-              <div id="fabric-types-chart" class="chart-container"></div>
-            </div>
-          </div>
+          <div id="category-chart" class="chart-container chart-container--short-labels"></div>
+        </section>
+        <section class="chart-card" id="wallpaper-types-card" hidden>
+          <h3>Wallpaper by type</h3>
+          <p class="muted">
+            Which wallpaper materials your revenue actually comes from. Read this against the fabric chart with
+            the numbers, not the bar lengths — each chart is scaled to its own largest bar, so a full-width bar
+            here and a full-width bar there are not the same amount of money.
+          </p>
+          <div id="wallpaper-types-chart" class="chart-container chart-container--short-labels"></div>
+        </section>
+        <section class="chart-card" id="fabric-types-card" hidden>
+          <h3>Fabric by type</h3>
+          <p class="muted">
+            The same breakdown within fabric. Substrates are a split <em>of</em> a category, not a ranking against
+            one — every bar here adds up to the Fabric bar in the chart above.
+          </p>
+          <div id="fabric-types-chart" class="chart-container chart-container--short-labels"></div>
         </section>
         <section class="chart-card" id="swatch-conversion-card" hidden>
           <h3>Swatch conversion</h3>

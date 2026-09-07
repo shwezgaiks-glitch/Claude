@@ -402,6 +402,13 @@ main {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The default label column is sized for long design names. Category and
+   substrate labels are short, so on these charts it leaves a wide blank gap
+   before the bars start — narrower here gives the bars the room instead. */
+.chart-container--short-labels .bar-label {
+  width: 26%;
+}
+
 a.bar-label:hover,
 a.bar-label:focus-visible {
   color: var(--series-1);
