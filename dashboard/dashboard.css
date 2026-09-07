@@ -1087,3 +1087,36 @@ svg.chart-svg {
 #never-sold-note {
   margin-top: 14px;
 }
+
+/* ---------- Weekly listing limit ---------- */
+.big-count {
+  margin: 12px 0 8px;
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.meter {
+  margin-bottom: 10px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--gridline);
+  overflow: hidden;
+}
+/* [hidden] loses to the unconditional background/height above at equal
+   specificity unless display is explicitly reset. */
+.meter[hidden] {
+  display: none;
+}
+.meter-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: var(--series-1);
+}
+/* Matches Spoonflower's own warning threshold of 45 rather than inventing a
+   second one, so the two never disagree about when you're close. */
+.meter-fill--warn {
+  background: var(--critical);
+}

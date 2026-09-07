@@ -116,6 +116,27 @@
           </p>
           <div id="design-families-list"></div>
         </section>
+        <section class="chart-card" id="weekly-listings-card" hidden>
+          <h3>This week's listings</h3>
+          <p class="muted">
+            Spoonflower lets you make <strong>50 unique designs</strong> available for sale per calendar week
+            (Monday 00:00 PT to Sunday 23:59 PT, no carry-over), and only warns you once you've hit 45. Toggling one
+            design off and back on doesn't use a second slot — the limit counts design IDs, not actions.
+          </p>
+          <p class="big-count" id="weekly-listings-count">—</p>
+          <div class="meter" id="weekly-listings-bar" hidden>
+            <div class="meter-fill"></div>
+          </div>
+          <p class="muted" id="weekly-listings-status"></p>
+          <p class="muted">
+            <strong>This is an estimate, not Spoonflower's counter.</strong> Spoonflower publishes no listing
+            history, so this counts designs observed going on sale <em>between one design sync and the next</em> —
+            it can only be as precise as your syncing is frequent, and it can't see anything you listed before you
+            first synced. Treat their banner at 45 as the authority.
+          </p>
+          <button type="button" id="weekly-listings-toggle" class="row-toggle" aria-expanded="false" hidden></button>
+          <div id="weekly-listings-list" class="thumb-grid" hidden></div>
+        </section>
         <section class="chart-card" id="never-sold-card" hidden>
           <h3>Never sold</h3>
           <span class="scope-badge">all-time</span>

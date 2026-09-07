@@ -69,8 +69,8 @@ back in one response.
   period-over-period delta, top designs (linked to their Spoonflower
   product pages), revenue by category and by substrate (wallpaper/fabric
   types, each with a $/unit average), revenue by tag, keyword trends,
-  design families, swatch conversion, never-sold designs, new design
-  performance (how much of a design's revenue arrives in its first
+  design families, swatch conversion, never-sold designs, weekly listing-limit
+  tracking, new design performance (how much of a design's revenue arrives in its first
   30/60/90 days), returns (a date-scoped summary alongside an all-time
   return-rate-by-design table), official payout figures, a
   searchable/sortable transaction table (every row, no cap; payouts and
@@ -129,6 +129,26 @@ back in one response.
   reporting itself as unsold forever. Data synced before this existed has
   no stored ordering — the card still lists the unsold designs and prompts
   you to re-run Sync Design Tags to get the age breakdown.
+  **This week's listings** tracks Spoonflower's weekly listing limit: 50
+  unique design ids may be made *for sale* per calendar week (Monday 00:00
+  PT to Sunday 23:59 PT, no carry-over, and toggling one design off and on
+  again doesn't consume a second slot). Spoonflower only warns you once
+  you've hit 45, so below that there's no running total anywhere in their
+  UI. This card shows one, with a meter that turns red at the same
+  threshold theirs does.
+
+  It is explicitly an *estimate*, not a copy of their counter, and the card
+  says so. Spoonflower publishes no listing history at all, so a listing can
+  only be observed as a change between two syncs: `putDesignTags` merges
+  rather than overwrites, recording `firstSeenAt` (first sync a design
+  existed) and `listedAt` (first sync it was seen for sale having not been
+  before). Both stay null when they can't be established honestly — on the
+  very first sync there is nothing to compare against, so the card reports
+  that tracking starts from the next sync rather than claiming a whole back
+  catalogue was listed today. Accuracy therefore scales with how often you
+  sync; a design listed and re-listed after tracking began keeps its
+  original date, matching Spoonflower's unique-id rule. Treat their banner
+  at 45 as the authority.
 - **Popup** — a quick-glance summary from the toolbar icon.
 
 ## Installing (unpacked, for development)

@@ -1200,6 +1200,152 @@ function renderUntaggedDesigns(items) {
   });
 }
 
+// ---------- Weekly listing limit ----------
+// Spoonflower allows 50 unique design ids to be made FOR SALE per calendar
+// week, running Monday 00:00 PT to Sunday 23:59 PT and resetting Monday at
+// 00:00 PT; unused slots don't carry over, and toggling one design off and
+// on again doesn't consume a second slot. Their UI only shows a counter once
+// you've hit 45, counting down the last five — below that there's no running
+// total anywhere, which is what this card is for.
+//
+// Two honesty constraints shape everything here. Spoonflower publishes no
+// listing history, so a listing is only ever *observed* as a change between
+// two syncs — this counts what the extension saw, not what Spoonflower
+// counted, and the two agree only in proportion to how often you sync. And
+// the week boundary is in Pacific time regardless of where the viewer is, so
+// it's computed in that zone explicitly rather than from the local clock.
+
+const WEEKLY_LISTING_LIMIT = 50;
+const SPOONFLOWER_TZ = "America/Los_Angeles";
+
+// Pacific's UTC offset at a given instant, in minutes (-420 during PDT, -480
+// during PST). Read from the platform's own tz database via Intl rather than
+// hardcoded, so DST transitions need no maintenance here.
+function pacificOffsetMinutes(utcMs) {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: SPOONFLOWER_TZ, timeZoneName: "longOffset" })
+    .formatToParts(new Date(utcMs))
+    .find((p) => p.type === "timeZoneName").value;
+  const m = name.match(/GMT([+-])(\d{1,2}):?(\d{2})?/);
+  if (!m) return -480; // GMT with no offset shouldn't occur for this zone; PST is the safe fallback
+  return (m[1] === "-" ? -1 : 1) * (parseInt(m[2], 10) * 60 + parseInt(m[3] || "0", 10));
+}
+
+function pacificCalendarParts(date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: SPOONFLOWER_TZ,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short"
+  }).formatToParts(date);
+  const get = (type) => parts.find((p) => p.type === type).value;
+  const weekdays = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    year: parseInt(get("year"), 10),
+    month: parseInt(get("month"), 10),
+    day: parseInt(get("day"), 10),
+    weekday: weekdays[get("weekday")]
+  };
+}
+
+// The instant at which the current Spoonflower listing week began.
+function spoonflowerWeekStart(now = new Date()) {
+  const pt = pacificCalendarParts(now);
+  const daysSinceMonday = (pt.weekday + 6) % 7; // Sunday (0) is 6 days into the week, not 0
+  const mondayUtcMidnight = Date.UTC(pt.year, pt.month - 1, pt.day) - daysSinceMonday * 86400000;
+  // Sample the offset around midday Pacific on that Monday: DST switches at
+  // 02:00 on a Sunday, so Monday midday and Monday midnight are always on
+  // the same side of a transition, while sampling at midnight itself could
+  // land on the wrong side of one.
+  const offset = pacificOffsetMinutes(mondayUtcMidnight + 20 * 3600000);
+  return new Date(mondayUtcMidnight - offset * 60000);
+}
+
+function formatPacific(date) {
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone: SPOONFLOWER_TZ,
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function buildWeeklyListings(now = new Date()) {
+  if (designMetaById.size === 0) return null;
+  const all = Array.from(designMetaById.values());
+  const weekStart = spoonflowerWeekStart(now);
+
+  // Tracking is only meaningful once two syncs exist to compare. Before
+  // that every listedAt is null by construction (see putDesignTags), which
+  // is indistinguishable from "listed nothing this week" — so the two cases
+  // are separated explicitly rather than reported as a confident zero.
+  const tracking = all.some((d) => d.listedAt);
+  const listedThisWeek = all
+    .filter((d) => d.listedAt && new Date(d.listedAt) >= weekStart)
+    .sort((a, b) => (a.listedAt < b.listedAt ? 1 : -1));
+
+  return {
+    weekStart,
+    tracking,
+    listedThisWeek,
+    remaining: Math.max(0, WEEKLY_LISTING_LIMIT - listedThisWeek.length)
+  };
+}
+
+function renderWeeklyListings(designSyncedAt) {
+  const card = document.getElementById("weekly-listings-card");
+  const data = buildWeeklyListings();
+  if (!data) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const countEl = document.getElementById("weekly-listings-count");
+  const barEl = document.getElementById("weekly-listings-bar");
+  const statusEl = document.getElementById("weekly-listings-status");
+  const listEl = document.getElementById("weekly-listings-list");
+
+  const windowText = `Week of ${formatPacific(data.weekStart)} PT — resets Monday 00:00 PT.`;
+
+  if (!data.tracking) {
+    countEl.textContent = "—";
+    barEl.hidden = true;
+    statusEl.textContent =
+      `${windowText} No listings recorded yet: this counts designs seen going on sale between one Sync Design Tags ` +
+      `run and the next, so it needs a second sync before it can report anything. Run it again next time you list something.`;
+    listEl.replaceChildren();
+    listEl.hidden = true;
+    document.getElementById("weekly-listings-toggle").hidden = true;
+    return;
+  }
+
+  countEl.textContent = `${data.listedThisWeek.length} / ${WEEKLY_LISTING_LIMIT}`;
+  barEl.hidden = false;
+  const fill = barEl.querySelector(".meter-fill");
+  fill.style.width = `${Math.min(100, (data.listedThisWeek.length / WEEKLY_LISTING_LIMIT) * 100)}%`;
+  // Spoonflower starts warning at 45; match that threshold rather than
+  // inventing a different one, so this card and their banner agree.
+  fill.classList.toggle("meter-fill--warn", data.listedThisWeek.length >= 45);
+
+  const syncNote = designSyncedAt
+    ? `Accurate as of your last design sync (${new Date(designSyncedAt).toLocaleString()}) — anything listed since then isn't counted yet.`
+    : "";
+  statusEl.textContent = `${windowText} ${data.remaining} slot${data.remaining === 1 ? "" : "s"} left by this count. ${syncNote}`;
+
+  // Collapsed behind a toggle rather than shown inline: at the top of the
+  // range this is 50 tiles, which would push every card below it off the
+  // page. The number and the meter are the answer; the grid is the detail.
+  const toggle = document.getElementById("weekly-listings-toggle");
+  listEl.replaceChildren();
+  listEl.hidden = true;
+  toggle.hidden = data.listedThisWeek.length === 0;
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.textContent = `▸ Show the ${data.listedThisWeek.length} listed, newest first`;
+  data.listedThisWeek.forEach((d) => listEl.appendChild(buildDesignTile(d)));
+}
+
 // ---------- Never sold (design library, all-time) ----------
 // Answers a question the transaction data cannot answer on its own: a design
 // with no sales appears in no transaction, so it is invisible everywhere else
@@ -1280,7 +1426,10 @@ function buildNeverSold(records) {
   return { total, neverSold, buckets, notForSale, hasOrder };
 }
 
-function buildNeverSoldTile(design) {
+// Shared by the Never-sold grid and the weekly-listings grid: both show a
+// design you have not seen sales from, where recognising the artwork matters
+// more than any number beside it.
+function buildDesignTile(design) {
   const fig = document.createElement("figure");
   fig.className = "thumb-tile";
 
@@ -1365,7 +1514,7 @@ function renderNeverSold(records) {
       ? `▸ Show all ${data.neverSold.length}, oldest first`
       : `▸ Show all ${data.neverSold.length}`;
     grid.hidden = true;
-    data.neverSold.forEach((d) => grid.appendChild(buildNeverSoldTile(d)));
+    data.neverSold.forEach((d) => grid.appendChild(buildDesignTile(d)));
   }
 
   const notes = [];
@@ -2344,8 +2493,9 @@ function applyRange(range) {
 
 async function init() {
   allRecords = await getAllTransactions();
-  const [lastSyncAt, yearlySummaries, designTags, buyerNotes] = await Promise.all([
+  const [lastSyncAt, designTagsSyncedAt, yearlySummaries, designTags, buyerNotes] = await Promise.all([
     getMeta("lastSyncAt"),
+    getMeta("designTagsSyncedAt"),
     getAllYearlySummaries(),
     getAllDesignTags(),
     getAllBuyerNotes()
@@ -2360,6 +2510,7 @@ async function init() {
   renderNewDesignPerformance(allRecords);
   renderSwatchConversion(allRecords);
   renderNeverSold(allRecords);
+  renderWeeklyListings(designTagsSyncedAt);
 
   document.getElementById("sync-status").textContent = lastSyncAt
     ? `Last synced ${new Date(lastSyncAt).toLocaleString()} · ${allRecords.length.toLocaleString()} transactions`
@@ -2474,6 +2625,15 @@ async function init() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !document.getElementById("design-detail-modal").hidden) closeDesignDetail();
+  });
+
+  document.getElementById("weekly-listings-toggle").addEventListener("click", () => {
+    const btn = document.getElementById("weekly-listings-toggle");
+    const grid = document.getElementById("weekly-listings-list");
+    const expanded = btn.getAttribute("aria-expanded") === "true";
+    btn.setAttribute("aria-expanded", String(!expanded));
+    grid.hidden = expanded;
+    btn.textContent = `${expanded ? "▸" : "▾"} ${btn.textContent.slice(2)}`;
   });
 
   document.getElementById("never-sold-toggle").addEventListener("click", () => {
