@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Sorter</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #e4e2dc;
+    --accent: #2f6f5e; --accent-ink: #ffffff; --soft: #eaf3ef; --warn: #9a5b00; --warn-soft: #fdf3e1;
+    --bad: #a3322a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --card: #20201e; --ink: #ecebe7; --muted: #a09f9a; --line: #34332f;
+      --accent: #6cc2a6; --accent-ink: #0f1f1a; --soft: #1f2e29; --warn: #f0b45a; --warn-soft: #2e2618;
+      --bad: #f08a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  .lede { color: var(--muted); margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+  label { display: block; font-weight: 600; margin: 0 0 6px; }
+  .hint { color: var(--muted); font-size: 13px; font-weight: 400; }
+  .row { display: flex; gap: 8px; }
+  input[type=text], textarea { flex: 1; width: 100%; min-width: 0; padding: 10px 12px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  textarea { min-height: 96px; resize: vertical; }
+  .field { margin-bottom: 18px; }
+  .choice { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin: 6px 0; cursor: pointer; }
+  .choice input { margin-top: 4px; }
+  button { font: inherit; font-weight: 600; border-radius: 9px; padding: 10px 16px; cursor: pointer;
+           border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 10px 0 6px; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+  .bar.spin > div { width: 30%; animation: slide 1.2s infinite ease-in-out; }
+  @keyframes slide { from { margin-left: -30%; } to { margin-left: 100%; } }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .tile { background: var(--bg); border-radius: 10px; padding: 12px; }
+  .tile b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: 13px; }
+  .tree { list-style: none; margin: 0 0 16px; padding: 0; font-variant-numeric: tabular-nums; }
+  .tree li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .tree li.top { font-weight: 600; padding-top: 12px; }
+  .tree li.sub { padding-left: 18px; color: var(--muted); }
+  .note { background: var(--warn-soft); color: var(--warn); border-radius: 9px; padding: 10px 12px; margin-bottom: 14px; font-size: 14px; }
+  .ok { background: var(--soft); border-radius: 9px; padding: 10px 12px; margin-bottom: 14px; }
+  .error { color: var(--bad); margin-top: 10px; }
+  details { margin-bottom: 14px; }
+  summary { cursor: pointer; font-weight: 600; }
+  .table { overflow-x: auto; margin-top: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td { word-break: break-all; }
+  .runs { list-style: none; padding: 0; margin: 0; }
+  .runs li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .hidden { display: none !important; }
+  @media (max-width: 520px) { .row { flex-direction: column; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Photo Sorter</h1>
+  <p class="lede">Puts your photos and videos into tidy folders by date. It runs on this computer only. It never deletes anything, and you can undo any run.</p>
+
+  <section class="card" id="setup">
+    <div class="field">
+      <label for="source">Folder to sort</label>
+      <div class="row">
+        <input type="text" id="source" placeholder="e.g. /Volumes/MyDrive/Photos  or  D:\Photos" autocomplete="off">
+        <button id="browse" type="button">Choose…</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="dest">Put the sorted folders in <span class="hint">(optional)</span></label>
+      <input type="text" id="dest" placeholder="A “Sorted” folder inside the folder above" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>What to do with the files</label>
+      <label class="choice"><input type="radio" name="mode" value="move" checked>
+        <span>Move them <span class="hint">— fast, and no extra disk space needed</span></span></label>
+      <label class="choice"><input type="radio" name="mode" value="copy">
+        <span>Copy them <span class="hint">— originals stay where they are, but it needs as much free space again</span></span></label>
+    </div>
+    <div class="field">
+      <label class="choice"><input type="checkbox" id="byContent">
+        <span><b>Also sort photos by what’s in them</b><br>
+        <span class="hint" id="aiHint">Uses a free AI model on this computer. Photos go into folders like “Photos/Food &amp; drinks/2024”.</span></span></label>
+      <div id="catBox" class="hidden" style="margin-top:8px">
+        <label for="categories">Folders, one per line <span class="hint">— anything that fits none goes into “Other”</span></label>
+        <textarea id="categories"></textarea>
+      </div>
+    </div>
+    <div class="actions"><button class="primary" id="scan">Scan folder</button></div>
+    <p class="hint" style="margin:10px 0 0">Scanning only looks. Nothing moves until you approve the plan.</p>
+    <div class="error" id="setupError"></div>
+  </section>
+
+  <section class="card hidden" id="working">
+    <h2 id="workStep">Working…</h2>
+    <div class="bar" id="bar"><div></div></div>
+    <div class="hint" id="workCount"></div>
+  </section>
+
+  <section class="card hidden" id="preview">
+    <h2>Here’s the plan</h2>
+    <div class="tiles" id="tiles"></div>
+    <div id="notes"></div>
+    <ul class="tree" id="tree"></ul>
+    <details>
+      <summary>See individual files</summary>
+      <div class="table"><table><thead><tr><th>Now</th><th>Goes to</th><th>Date</th></tr></thead><tbody id="sample"></tbody></table></div>
+      <p class="hint" id="sampleNote"></p>
+    </details>
+    <div class="actions">
+      <button class="primary" id="apply">Sort files</button>
+      <button id="cancel">Change settings</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="done">
+    <h2 id="doneTitle">Done</h2>
+    <div class="ok" id="doneText"></div>
+    <details id="doneErrorsBox" class="hidden"><summary id="doneErrorsTitle"></summary><ul id="doneErrors"></ul></details>
+    <div class="actions">
+      <button id="undoLast">Undo this</button>
+      <button class="primary" id="again">Sort another folder</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="history">
+    <h2>Earlier runs in this folder</h2>
+    <ul class="runs" id="runs"></ul>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const show = (id, on = true) => $(id).classList.toggle("hidden", !on);
+const fmt = (n) => n.toLocaleString();
+const gb = (b) => b >= 1e9 ? (b / 1e9).toFixed(1) + " GB" : Math.max(1, Math.round(b / 1e6)) + " MB";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+let polling = null, lastLog = null, aiAvailable = false;
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Something went wrong.");
+  return data;
+}
+
+function settings() {
+  return {
+    source: $("source").value.trim(),
+    dest: $("dest").value.trim(),
+    copy: document.querySelector("input[name=mode]:checked").value === "copy",
+    by_content: $("byContent").checked,
+    categories: $("categories").value.split("\n").map((s) => s.trim()).filter(Boolean),
+  };
+}
+
+function screen(name) {
+  for (const id of ["setup", "working", "preview", "done"]) show(id, id === name);
+}
+
+async function start(path, body) {
+  $("setupError").textContent = "";
+  try {
+    await api(path, body);
+    screen("working");
+    poll();
+  } catch (e) {
+    $("setupError").textContent = e.message;
+    screen("setup");
+  }
+}
+
+function poll() {
+  clearTimeout(polling);
+  polling = setTimeout(async () => {
+    const s = await api("/api/status");
+    const job = s.job;
+    if (job.busy) {
+      $("workStep").textContent = job.step + "…";
+      const bar = $("bar");
+      bar.classList.toggle("spin", !job.total);
+      bar.firstElementChild.style.width = job.total ? (100 * job.done / job.total) + "%" : "";
+      $("workCount").textContent = job.total ? `${fmt(job.done)} of ${fmt(job.total)}` : "";
+      return poll();
+    }
+    if (job.error) {
+      $("setupError").textContent = job.error;
+      return screen("setup");
+    }
+    if (s.result) return renderDone(s.result);
+    if (s.summary) return renderPreview(s.summary);
+    screen("setup");
+  }, 400);
+}
+
+function renderPreview(s) {
+  screen("preview");
+  $("tiles").innerHTML = [
+    [fmt(s.total), "photos & videos"],
+    [gb(s.total_size), "in total"],
+    [fmt(s.duplicates), "duplicates set aside"],
+    [fmt(s.skipped), "other files left alone"],
+  ].map(([v, l]) => `<div class="tile"><b>${v}</b><span>${l}</span></div>`).join("");
+
+  const notes = [];
+  const guessed = s.date_sources["file date"] || 0;
+  if (guessed) notes.push(`${fmt(guessed)} file${guessed > 1 ? "s have" : " has"} no date saved inside, so the date the file was last changed is used. That can be the day it was copied rather than taken.`);
+  if (!s.total) notes.push("No photos or videos were found in that folder.");
+  $("notes").innerHTML = notes.map((n) => `<div class="note">${esc(n)}</div>`).join("");
+
+  // Group "Photos/2024/2024-07" rows under their top folder.
+  const groups = {};
+  for (const [folder, n] of s.folders) {
+    const [top, ...rest] = folder.split("/");
+    (groups[top] ||= []).push([rest.join(" / "), n]);
+  }
+  $("tree").innerHTML = Object.keys(s.top).map((top) =>
+    `<li class="top"><span>${esc(top)}</span><span>${fmt(s.top[top])}</span></li>` +
+    groups[top].filter(([sub]) => sub).map(([sub, n]) => `<li class="sub"><span>${esc(sub)}</span><span>${fmt(n)}</span></li>`).join("")
+  ).join("");
+
+  $("sample").innerHTML = s.sample.map((m) =>
+    `<tr><td>${esc(m.from)}</td><td>${esc(m.to)}${m.note ? `<br><span class="hint">${esc(m.note)}</span>` : ""}</td>` +
+    `<td>${esc(m.date.slice(0, 10))}<br><span class="hint">from ${esc(m.date_source)}</span></td></tr>`).join("");
+  $("sampleNote").textContent = s.total > s.sample.length ? `Showing the first ${s.sample.length} of ${fmt(s.total)}.` : "";
+
+  $("apply").textContent = `${s.copy ? "Copy" : "Move"} ${fmt(s.total)} files into “${s.dest.split(/[\\/]/).pop()}”`;
+  $("apply").disabled = !s.total;
+  loadRuns();
+}
+
+function renderDone(r) {
+  screen("done");
+  const errors = r.errors || [];
+  if (r.kind === "sort") {
+    lastLog = r.log;
+    $("doneTitle").textContent = "All sorted";
+    $("doneText").innerHTML = `Sorted ${fmt(r.done)} files. A list of every file’s original name and new place was saved as<br><code>${esc(r.names)}</code>`;
+    show("undoLast", true);
+  } else {
+    $("doneTitle").textContent = "Undone";
+    $("doneText").textContent = `Put ${fmt(r.done)} files back where they were.`;
+    show("undoLast", false);
+  }
+  show("doneErrorsBox", errors.length > 0);
+  $("doneErrorsTitle").textContent = `${errors.length} file${errors.length > 1 ? "s" : ""} couldn’t be handled`;
+  $("doneErrors").innerHTML = errors.map((e) => `<li>${esc(e)}</li>`).join("");
+  loadRuns();
+}
+
+async function loadRuns() {
+  const { source, dest } = settings();
+  if (!source && !dest) return show("history", false);
+  try {
+    const { runs } = await api("/api/runs", { source, dest });
+    show("history", runs.length > 0);
+    $("runs").innerHTML = runs.map((r) => `<li><span>${esc(r.run.replace("_", " at ").replace(/-(\d\d)-(\d\d)$/, ":$1"))}
+      <span class="hint">· ${r.action === "copy" ? "copied" : "moved"} ${fmt(r.files)} files${r.undone ? " · undone" : ""}</span></span>
+      ${r.undone ? "" : `<button data-log="${esc(r.log)}">Undo</button>`}</li>`).join("");
+  } catch { show("history", false); }
+}
+
+function confirmUndo(log) {
+  if (confirm("Put every file from this run back where it was?")) start("/api/undo", { log });
+}
+
+$("browse").onclick = async () => {
+  const { path } = await api("/api/browse", {});
+  if (path) { $("source").value = path; store.set("source", path); loadRuns(); }
+};
+$("scan").onclick = () => {
+  const s = settings();
+  if (!s.source) return ($("setupError").textContent = "Choose a folder first.");
+  store.set("source", s.source); store.set("dest", s.dest);
+  start("/api/scan", s);
+};
+$("apply").onclick = () => start("/api/apply", {});
+$("cancel").onclick = () => { screen("setup"); loadRuns(); };
+$("again").onclick = () => { screen("setup"); loadRuns(); };
+$("undoLast").onclick = () => confirmUndo(lastLog);
+$("runs").onclick = (e) => { if (e.target.dataset.log) confirmUndo(e.target.dataset.log); };
+$("byContent").onchange = () => show("catBox", $("byContent").checked);
+$("source").onchange = loadRuns;
+
+(async () => {
+  $("source").value = store.get("source") || "";
+  $("dest").value = store.get("dest") || "";
+  const s = await api("/api/status");
+  aiAvailable = s.ai_available;
+  $("categories").value = s.default_categories.join("\n");
+  if (!aiAvailable) {
+    $("byContent").disabled = true;
+    $("aiHint").textContent = "Needs the free AI add-on, which isn’t installed yet. See “Sorting by content” in the README.";
+  }
+  if (s.job.busy) { screen("working"); poll(); }
+  else if (s.result) renderDone(s.result);
+  else if (s.summary) renderPreview(s.summary);
+  loadRuns();
+})();
+</script>
+</body>
+</html>

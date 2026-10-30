@@ -1,0 +1,5 @@
+# Optional: sort photos by what's in them, on this computer.
+# Large download (about 1 GB with the model), so it's kept separate.
+-r requirements.txt
+torch>=2.1
+open_clip_torch>=2.24
